@@ -5,7 +5,7 @@ from renderer import Renderer
 ti.init(arch=ti.vulkan)
 
 GRID_RES = 32
-SCREEN_RES = (640, 360)
+SCREEN_RES = (640, 640)
 renderer = Renderer(dx=1 / GRID_RES,
                     sphere_radius=0.3 / GRID_RES, res=SCREEN_RES)
 
