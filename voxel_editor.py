@@ -6,17 +6,24 @@ ti.init(arch=ti.vulkan, device_memory_GB=1)
 
 from renderer import Renderer
 
-res = 32
-screen_res = (640, 360)
-renderer = Renderer(dx=1 / res,
-                    sphere_radius=0.3 / res, res=screen_res)
+GRID_RES = 32
+SCREEN_RES = (640, 360)
+renderer = Renderer(dx=1 / GRID_RES,
+                    sphere_radius=0.3 / GRID_RES, res=SCREEN_RES)
 
 
 
-window = ti.ui.Window("Voxel Editor", screen_res, vsync=True)
+window = ti.ui.Window("Voxel Editor", SCREEN_RES, vsync=True)
 selected_voxel_color = (0.2, 0.2, 0.2)
 
-spp = 10
+SPP = 10
+
+def show_hud():
+  global selected_voxel_color
+  window.GUI.begin("Options", 0.05, 0.05, 0.3, 0.2)
+  selected_voxel_color = window.GUI.color_edit_3(
+              "Voxel", selected_voxel_color)
+  window.GUI.end()
 
 def main():
     canvas = window.get_canvas()
@@ -27,11 +34,13 @@ def main():
 
     total_voxels = renderer.total_non_empty_voxels()
     print('Total nonempty voxels', total_voxels)
-    img = renderer.render_frame(spp=spp)
+    img = renderer.render_frame(spp=SPP)
 
-    while True:
+    while window.running:
+        show_hud()
         canvas.set_image(img)
         window.show()
 
 
-main()
+if __name__ == '__main__':
+    main()
