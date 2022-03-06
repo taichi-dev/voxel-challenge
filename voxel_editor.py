@@ -150,6 +150,41 @@ Edit Mode:
     print(msg)
 
 
+class EditModeProcessor:
+    def __init__(self, window, renderer):
+        self._window = window
+        self._renderer = renderer
+        self._event_handled = False
+        self._last_mouse_pos = None
+
+    def process(self):
+        win = self._window
+        renderer = self._renderer
+        mouse_pos = np.array(win.get_cursor_pos())
+        mov_delta = 0
+        if self._last_mouse_pos is not None:
+            d = mouse_pos - self._last_mouse_pos
+            mov_delta = np.dot(d, d)
+        # TODO: Use a state machine to handle the logic
+        if not self._event_handled:
+            self._last_mouse_pos = mouse_pos
+            # screen space
+            mouse_pos_ss = [int(mouse_pos[i] * SCREEN_RES[i])
+                            for i in range(2)]
+            ijk = renderer.raycast_voxel_grid(mouse_pos_ss, solid=True)
+            if win.is_pressed(ti.ui.LMB):
+                ijk = renderer.raycast_voxel_grid(mouse_pos_ss, solid=False)
+                if ijk is not None:
+                    renderer.add_voxel(ijk)
+                    self._event_handled = True
+            elif win.is_pressed(ti.ui.RMB):
+                if ijk is not None:
+                    renderer.delete_voxel(ijk)
+                    self._event_handled = True
+        elif win.get_events(ti.ui.RELEASE) or mov_delta > 1e-5:
+            self._event_handled = False
+
+
 def main():
     ti.init(arch=ti.vulkan)
     print_help()
@@ -165,25 +200,13 @@ def main():
     renderer.initialize_grid()
 
     canvas = window.get_canvas()
-
+    edit_proc = EditModeProcessor(window, renderer)
     while window.running:
         hud_res = hud_mgr.update()
         should_reset_framebuffer = False
         if hud_mgr.in_edit_mode:
             should_reset_framebuffer = True
-
-            mouse_pos = tuple(window.get_cursor_pos())
-            # screen space
-            mouse_pos_ss = [int(mouse_pos[i] * SCREEN_RES[i])
-                            for i in range(2)]
-            ijk = renderer.raycast_voxel_grid(mouse_pos_ss, solid=True)
-            if window.is_pressed(ti.ui.LMB):
-                ijk = renderer.raycast_voxel_grid(mouse_pos_ss, solid=False)
-                if ijk is not None:
-                    renderer.add_voxel(ijk)
-            elif window.is_pressed(ti.ui.RMB):
-                if ijk is not None:
-                    renderer.delete_voxel(ijk)
+            edit_proc.process()
         elif hud_res.edit_mode_changed:
             renderer.clear_cast_voxel()
 
