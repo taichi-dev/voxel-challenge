@@ -2,7 +2,7 @@ import taichi as ti
 import os
 import time
 
-ti.init(arch=ti.vulkan, device_memory_GB=1)
+ti.init(arch=ti.vulkan)
 
 from renderer import Renderer
 
@@ -10,7 +10,6 @@ GRID_RES = 32
 SCREEN_RES = (640, 360)
 renderer = Renderer(dx=1 / GRID_RES,
                     sphere_radius=0.3 / GRID_RES, res=SCREEN_RES)
-
 
 
 window = ti.ui.Window("Voxel Editor", SCREEN_RES, vsync=True)

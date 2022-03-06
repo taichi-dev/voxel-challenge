@@ -32,9 +32,9 @@ class Renderer:
 
         self.color_buffer = ti.Vector.field(3, dtype=ti.f32)
         self.bbox = ti.Vector.field(3, dtype=ti.f32, shape=2)
-        self.voxel_grid_density = ti.field(dtype=ti.f32)
-        self.voxel_has_particle = ti.field(dtype=ti.i32)
         self.fov = ti.field(dtype=ti.f32, shape=())
+        self.voxel_color = ti.Vector.field(3, dtype=ti.u8)
+        self.voxel_material = ti.field(dtype=ti.u8)
 
         self.num_particles = ti.field(ti.i32, shape=())
 
@@ -75,16 +75,11 @@ class Renderer:
         self.voxel_block_offset = [
             o // self.block_size for o in voxel_grid_offset
         ]
-        ti.root.dense(ti.ijk,
-                      self.particle_grid_res // self.block_size).dense(
-            ti.ijk,
-            self.block_size).place(self.voxel_has_particle,
-                                   offset=voxel_grid_offset)
         voxel_block = ti.root.dense(ti.ijk,
                                     self.voxel_grid_res // self.block_size)
 
         voxel_block.dense(ti.ijk,
-                          self.block_size).place(self.voxel_grid_density,
+                          self.block_size).place(self.voxel_color, self.voxel_material,
                                                  offset=voxel_grid_offset)
 
         self._rendered_image = ti.Vector.field(3, float, res)
@@ -108,14 +103,15 @@ class Renderer:
         inside = self.inside_grid(ipos)
         ret = 0.0
         if inside:
-            ret = self.voxel_grid_density[ipos]
+            ret = self.voxel_material[ipos]
         else:
             ret = 0.0
         return ret
 
     @ti.func
-    def voxel_color(self, pos):
+    def voxel_surface_color(self, pos):
         p = pos * self.inv_dx
+        voxel_index = ti.floor(p).cast(ti.i32)
 
         p -= ti.floor(p)
 
@@ -124,10 +120,16 @@ class Renderer:
         for i in ti.static(range(3)):
             if p[i] < boundary or p[i] > 1 - boundary:
                 count += 1
+
         f = 0.0
         if count >= 2:
             f = 1.0
-        return ti.Vector([0.9, 0.8, 1.0]) * (1.3 - 1.2 * f)
+
+        voxel_color = ti.Vector([0.0, 0.0, 0.0])
+        if self.inside_particle_grid(voxel_index):
+            voxel_color = self.voxel_color[voxel_index] * (1.0 / 255)
+
+        return voxel_color * (1.3 - 1.2 * f)
 
     @ti.func
     def sdf(self, o):
@@ -225,8 +227,8 @@ class Renderer:
                     mini = (ipos - o + ti.Vector([0.5, 0.5, 0.5]) -
                             rsign * 0.5) * rinv
                     hit_distance = mini.max() * self.voxel_dx + near
-                    hit_pos = eye_pos + hit_distance * d
-                    c = self.voxel_color(hit_pos)
+                    hit_pos = eye_pos + (hit_distance + 1e-3) * d
+                    c = self.voxel_surface_color(hit_pos)
                     running = 0
                 else:
                     mm = ti.Vector([0, 0, 0])
@@ -375,8 +377,8 @@ class Renderer:
     def total_non_empty_voxels(self) -> ti.i32:
         counter = 0
 
-        for I in ti.grouped(self.voxel_has_particle):
-            if self.voxel_has_particle[I]:
+        for I in ti.grouped(self.voxel_material):
+            if self.voxel_material[I] > 0.0:
                 counter += 1
 
         return counter
@@ -396,8 +398,8 @@ class Renderer:
             for j in range(10):
                 for k in range(10):
                     if random.random() < 0.1:
-                        self.voxel_has_particle[(i, j, k)] = 1
-                        self.voxel_grid_density[(i, j, k)] = 1
+                        self.voxel_material[i, j, k] = 1
+                        self.voxel_color[i, j, k] = [int(random.random() * 255) for _ in range(3)]
 
     def render_frame(self, spp):
         last_t = 0
