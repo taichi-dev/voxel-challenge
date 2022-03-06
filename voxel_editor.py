@@ -1,3 +1,4 @@
+import math
 import taichi as ti
 import numpy as np
 from renderer import Renderer
@@ -18,7 +19,7 @@ def show_hud():
     global selected_voxel_color
     global in_edit_mode
     window.GUI.begin("Options", 0.05, 0.05, 0.3, 0.2)
-    label = 'Edit' if in_edit_mode else 'View'
+    label = 'View' if in_edit_mode else 'Edit'
     if window.GUI.button(label):
         in_edit_mode = not in_edit_mode
     selected_voxel_color = window.GUI.color_edit_3(
@@ -31,13 +32,30 @@ def np_normalize(v):
     return v / np.sqrt(np.sum(v**2))
 
 
+def np_rotate_matrix(axis, theta):
+    """
+    Return the rotation matrix associated with counterclockwise rotation about
+    the given axis by theta radians.
+    """
+    # https://stackoverflow.com/a/6802723/12003165
+    axis = np_normalize(axis)
+    a = math.cos(theta / 2.0)
+    b, c, d = -axis * math.sin(theta / 2.0)
+    aa, bb, cc, dd = a * a, b * b, c * c, d * d
+    bc, ad, ac, ab, bd, cd = b * c, a * d, a * c, a * b, b * d, c * d
+    return np.array([[aa + bb - cc - dd, 2 * (bc + ad), 2 * (bd - ac), 0],
+                     [2 * (bc - ad), aa + cc - bb - dd, 2 * (cd + ab), 0],
+                     [2 * (bd + ac), 2 * (cd - ab), aa + dd - bb - cc, 0],
+                     [0, 0, 0, 1]])
+
+
 class Camera:
     def __init__(self, window, up):
         self._window = window
-        self._camera_pos = np.array((3.24, 1.86, -4.57))
+        self._camera_pos = np.array((1.0, 1.5, -2.0))
         self._lookat_pos = np.array((0.0, 0.0, 0.0))
         self._up = np_normalize(np.array(up))
-        self._last_mouse_pos = np.array(self._window.get_cursor_pos())
+        self._last_mouse_pos = None
 
     def update_camera(self):
         res = self._update_by_mouse()
@@ -46,26 +64,38 @@ class Camera:
 
     def _update_by_mouse(self):
         win = self._window
-        if not win.is_pressed(ti.ui.CTRL):
-            return False
-        if not win.is_pressed(ti.ui.LMB):
+        if not win.is_pressed(ti.ui.CTRL) or not win.is_pressed(ti.ui.LMB):
+            self._last_mouse_pos = None
             return False
         mouse_pos = np.array(win.get_cursor_pos())
-        delta2d = mouse_pos - self._last_mouse_pos
-        delta = np.array([delta2d[0], delta2d[1], 0]) * 2
+        if self._last_mouse_pos is None:
+            self._last_mouse_pos = mouse_pos
+            return False
+        # Makes camera rotation feels right
+        dx, dy = self._last_mouse_pos - mouse_pos
         self._last_mouse_pos = mouse_pos
-        self._camera_pos += delta
+
+        out_dir = self._camera_pos - self._lookat_pos
+        leftdir = self._compute_left_dir(np_normalize(-out_dir))
+
+        rotx = np_rotate_matrix(self._up, dx)
+        roty = np_rotate_matrix(leftdir, dy)
+
+        out_dir_homo = np.array(list(out_dir) + [0.0, ])
+        new_out_dir = np.matmul(np.matmul(roty, rotx), out_dir_homo)[:3]
+        self._camera_pos = self._lookat_pos + new_out_dir
+
         return True
 
     def _update_by_wasd(self):
         win = self._window
-        fwd = np_normalize(self._lookat_pos - self._camera_pos)
-        left = np.cross(self._up, fwd)
+        tgtdir = self.target_dir
+        leftdir = self._compute_left_dir(tgtdir)
         lut = [
-            ('w', fwd),
-            ('a', left),
-            ('s', -fwd),
-            ('d', -left),
+            ('w', tgtdir),
+            ('a', leftdir),
+            ('s', -tgtdir),
+            ('d', -leftdir),
         ]
         dir = None
         for key, d in lut:
@@ -86,6 +116,16 @@ class Camera:
     @property
     def look_at(self):
         return self._lookat_pos
+
+    @property
+    def target_dir(self):
+        return np_normalize(self.look_at - self.position)
+
+    def _compute_left_dir(self, tgtdir):
+        cos = np.dot(self._up, tgtdir)
+        if abs(cos) > 0.999:
+            return np.array([-1.0, 0.0, 0.0])
+        return np.cross(self._up, tgtdir)
 
 
 def main():
