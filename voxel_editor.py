@@ -2,7 +2,7 @@ import taichi as ti
 import os
 import time
 
-ti.init(arch=ti.cpu, device_memory_GB=1)
+ti.init(arch=ti.vulkan)
 
 from renderer import Renderer
 
