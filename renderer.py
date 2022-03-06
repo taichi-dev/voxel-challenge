@@ -37,7 +37,8 @@ class Renderer:
         self.voxel_color = ti.Vector.field(3, dtype=ti.u8)
         self.voxel_material = ti.field(dtype=ti.u8)
 
-        self.num_particles = ti.field(ti.i32, shape=())
+        self.cast_voxel_hit = ti.field(ti.i32, shape=())
+        self.cast_voxel_index = ti.Vector.field(3, ti.i32, shape=())
 
         self.voxel_edges = 0.1
 
@@ -232,6 +233,23 @@ class Renderer:
                 i += 1
         return hit_distance, normal, c
 
+    @ti.kernel
+    def raycast(self, mouse_x: ti.i32, mouse_y: ti.i32, offset: ti.f32):
+        closest = inf
+        normal = ti.Vector([0.0, 0.0, 0.0])
+        c = ti.Vector([0.0, 0.0, 0.0])
+        d = self.get_cast_dir(mouse_x, mouse_y)
+        closest, normal, c = self.dda_voxel(self.camera_pos[None], d)
+
+        if closest < inf:
+            self.cast_voxel_hit[None] = 1
+            p = self.camera_pos[None] + (closest + offset) * d
+            p = p * self.inv_dx
+            voxel_index = ti.floor(p).cast(ti.i32)
+            self.cast_voxel_index[None] = voxel_index
+        else:
+            self.cast_voxel_hit[None] = 0
+
     @ti.func
     def inside_particle_grid(self, ipos):
         pos = ipos * self.dx
@@ -277,19 +295,24 @@ class Renderer:
     def set_fov(self, fov: ti.f32):
         self.fov[None] = fov
 
+    @ti.func
+    def get_cast_dir(self, u, v):
+        fov = self.fov[None]
+        d = (self.look_at[None] - self.camera_pos[None]).normalized()
+        fu = (2 * fov * (u + ti.random(ti.f32)) / self.res[1] -
+              fov * self.aspect_ratio - 1e-5)
+        fv = 2 * fov * (v + ti.random(ti.f32)) / self.res[1] - fov - 1e-5
+        du = d.cross(self.up[None]).normalized()
+        dv = du.cross(d).normalized()
+        d = (d + fu * du + fv * dv).normalized()
+        return d
+
     @ti.kernel
     def render(self):
         ti.block_dim(256)
         for u, v in self.color_buffer:
-            fov = self.fov[None]
+            d = self.get_cast_dir(u, v)
             pos = self.camera_pos[None]
-            d = (self.look_at[None] - self.camera_pos[None]).normalized()
-            fu = (2 * fov * (u + ti.random(ti.f32)) / self.res[1] -
-                  fov * self.aspect_ratio - 1e-5)
-            fv = 2 * fov * (v + ti.random(ti.f32)) / self.res[1] - fov - 1e-5
-            du = d.cross(self.up[None]).normalized()
-            dv = du.cross(d).normalized()
-            d = (d + fu * du + fv * dv).normalized()
             t = 0.0
 
             contrib = ti.Vector([0.0, 0.0, 0.0])
@@ -397,22 +420,36 @@ class Renderer:
         self._render_to_image(self.current_spp)
         return self._rendered_image
 
-    def raycast_voxel_grid(self, mouse_pos):
+    def raycast_voxel_grid(self, mouse_pos, solid):
         """
+        Parameters:
+          mouse_pos: the mouse position, in pixels
+          solid: return the first solid sell or the last empty cell along the ray
+
         Returns:
+          hit: hit or not
           ijk: of the selected grid pos
-          bool: whether there is a voxel
         """
-        return (0, 0, 0), False
+        if solid:
+            offset = 1e-3
+        else:
+            offset = -1e-3
+
+        self.raycast(mouse_pos[0], mouse_pos[1], offset)
+
+        if self.cast_voxel_hit[None]:
+            return True, self.cast_voxel_index[None]
+        else:
+            return False, None
 
     def add_voxel(self, ijk, mat=1, color=(0.5, 0.5, 0.5)):
         ijk = tuple(ijk)
         self.voxel_material[ijk] = mat
-        self.voxel_color[ijk] = [int(color * 255) for _ in range(3)]
+        self.voxel_color[ijk] = [int(color[i] * 255) for i in range(3)]
 
     def delete_voxel(self, ijk):
         self.voxel_material[tuple(ijk)] = 0
 
     def set_voxel_color(self, ijk, color):
         ijk = tuple(ijk)
-        self.voxel_color[ijk] = [int(color * 255) for _ in range(3)]
+        self.voxel_color[ijk] = [int(color[i] * 255) for i in range(3)]
