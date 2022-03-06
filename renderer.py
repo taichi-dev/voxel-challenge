@@ -83,17 +83,18 @@ class Renderer:
             o // self.block_size for o in voxel_grid_offset
         ]
         ti.root.dense(ti.ijk,
-                        self.particle_grid_res // self.block_size).dense(
-                            ti.ijk,
-                            self.block_size).place(self.voxel_has_particle,
-                                                   offset=voxel_grid_offset)
+                      self.particle_grid_res // self.block_size).dense(
+            ti.ijk,
+            self.block_size).place(self.voxel_has_particle,
+                                   offset=voxel_grid_offset)
         voxel_block = ti.root.dense(ti.ijk,
-                                      self.voxel_grid_res // self.block_size)
+                                    self.voxel_grid_res // self.block_size)
 
         voxel_block.dense(ti.ijk,
                           self.block_size).place(self.voxel_grid_density,
                                                  offset=voxel_grid_offset)
 
+        self._rendered_image = ti.Vector.field(3, float, res)
         self.set_up(0, 1, 0)
         self.set_fov(0.23)
 
@@ -255,7 +256,6 @@ class Renderer:
             0] and self.bbox[0][1] <= pos[1] and pos[1] < self.bbox[1][
                 1] and self.bbox[0][2] <= pos[2] and pos[2] < self.bbox[1][2]
 
-
     @ti.func
     def next_hit(self, pos, d, t):
         closest = inf
@@ -365,7 +365,7 @@ class Renderer:
             self.color_buffer[u, v] += contrib
 
     @ti.kernel
-    def copy(self, img: ti.ext_arr(), samples: ti.i32):
+    def _render_to_image(self, samples: ti.i32):
         for i, j in self.color_buffer:
             u = 1.0 * i / self.res[0]
             v = 1.0 * j / self.res[1]
@@ -375,8 +375,8 @@ class Renderer:
                 (v - self.vignette_center[1])**2) - self.vignette_radius), 0)
 
             for c in ti.static(range(3)):
-                img[i, j, c] = ti.sqrt(self.color_buffer[i, j][c] * darken *
-                                       exposure / samples)
+                self._rendered_image[i, j][c] = ti.sqrt(self.color_buffer[i, j][c] * darken *
+                                                       exposure / samples)
 
     @ti.kernel
     def total_non_empty_voxels(self) -> ti.i32:
@@ -418,6 +418,5 @@ class Renderer:
                         (time.time() - last_t) * 1000 / interval))
                 last_t = time.time()
 
-        img = np.zeros((self.res[0], self.res[1], 3), dtype=np.float32)
-        self.copy(img, spp)
-        return img
+        self._render_to_image(spp)
+        return self._rendered_image

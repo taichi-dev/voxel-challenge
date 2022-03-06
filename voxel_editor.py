@@ -2,23 +2,25 @@ import taichi as ti
 import os
 import time
 
-ti.init(arch=ti.vulkan)
+ti.init(arch=ti.vulkan, device_memory_GB=1)
 
 from renderer import Renderer
 
 res = 32
-screen_res = 640, 360
+screen_res = (640, 360)
 renderer = Renderer(dx=1 / res,
                     sphere_radius=0.3 / res, res=screen_res,
                     max_num_particles_million=1)
 
 
-with_gui = True
-gui = ti.GUI('Voxel Editor', screen_res)
+
+window = ti.ui.Window("Voxel Editor", screen_res, vsync=True)
+selected_voxel_color = (0.2, 0.2, 0.2)
 
 spp = 10
 
 def main():
+    canvas = window.get_canvas()
     renderer.set_camera_pos(3.24, 1.86, -4.57)
     renderer.floor_height[None] = -5e-3
 
@@ -29,10 +31,8 @@ def main():
     img = renderer.render_frame(spp=spp)
 
     while True:
-        gui.set_image(img)
-        gui.show()
-    ti.print_memory_profile_info()
-    print(f'Frame rendered. {spp} take {time.time() - t} s.')
+        canvas.set_image(img)
+        window.show()
 
 
 main()
