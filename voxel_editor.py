@@ -62,6 +62,20 @@ def main():
 
     while window.running:
         show_hud()
+        mouse_pos = tuple(window.get_cursor_pos())
+        mouse_pos = [int(mouse_pos[i] * SCREEN_RES[i]) for i in range(2)]
+        if window.is_pressed(ti.ui.LMB):
+            hit, ijk, = renderer.raycast_voxel_grid(mouse_pos, solid=False)
+            if hit:
+                print(f'LMB hit! ijk={ijk}')
+                renderer.add_voxel(ijk)
+                renderer.reset_framebuffer()
+        elif window.is_pressed(ti.ui.RMB):
+            hit, ijk, = renderer.raycast_voxel_grid(mouse_pos, solid=True)
+            if hit:
+                print(f'RMB hit! ijk={ijk}')
+                renderer.delete_voxel(ijk)
+                renderer.reset_framebuffer()
         if camera.update_camera():
             renderer.set_camera_pos(*camera.position)
             renderer.reset_framebuffer()

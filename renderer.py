@@ -424,7 +424,7 @@ class Renderer:
         """
         Parameters:
           mouse_pos: the mouse position, in pixels
-          solid: return the first solid sell or the last empty cell along the ray
+          solid: return the first solid cell or the last empty cell along the ray
 
         Returns:
           hit: hit or not
