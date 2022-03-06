@@ -23,7 +23,6 @@ class Renderer:
     def __init__(self,
                  dx=1 / 1024,
                  sphere_radius=0.3 / 1024,
-                 render_voxel=False,
                  shutter_time=1e-3,
                  taichi_logo=True,
                  res=None,
@@ -50,7 +49,6 @@ class Renderer:
         self.pid = ti.field(ti.i32)
         self.num_particles = ti.field(ti.i32, shape=())
 
-        self.render_voxel = render_voxel
 
         self.voxel_edges = 0.1
 
@@ -214,7 +212,6 @@ class Renderer:
             scale = 1.0
         return ti.Vector([0.3, 0.5, 0.7]) * scale
 
-    # Digital differential analyzer for the grid visualization (render_voxels=True)
     @ti.func
     def dda_voxel(self, eye_pos, d):
         for i in ti.static(range(3)):
@@ -279,98 +276,13 @@ class Renderer:
             0] and self.bbox[0][1] <= pos[1] and pos[1] < self.bbox[1][
                 1] and self.bbox[0][2] <= pos[2] and pos[2] < self.bbox[1][2]
 
-    # DDA for the particle visualization (render_voxels=False)
-    @ti.func
-    def dda_particle(self, eye_pos, d, t):
-        # bounding box
-        bbox_min = self.bbox[0]
-        bbox_max = self.bbox[1]
-
-        hit_pos = ti.Vector([0.0, 0.0, 0.0])
-        normal = ti.Vector([0.0, 0.0, 0.0])
-        c = ti.Vector([0.0, 0.0, 0.0])
-        for i in ti.static(range(3)):
-            if abs(d[i]) < 1e-6:
-                d[i] = 1e-6
-
-        inter, near, far = ray_aabb_intersection(bbox_min, bbox_max, eye_pos,
-                                                 d)
-        near = max(0, near)
-
-        closest_intersection = inf
-
-        if inter:
-            pos = eye_pos + d * (near + eps)
-
-            rinv = 1.0 / d
-            rsign = ti.Vector([0, 0, 0])
-            for i in ti.static(range(3)):
-                if d[i] > 0:
-                    rsign[i] = 1
-                else:
-                    rsign[i] = -1
-
-            o = self.inv_dx * pos
-            ipos = ti.floor(o).cast(int)
-            dis = (ipos - o + 0.5 + rsign * 0.5) * rinv
-            running = 1
-            # DDA for voxels with at least one particle
-            while running:
-                inside = self.inside_particle_grid(ipos)
-
-                if inside:
-                    # once we actually intersect with a voxel that contains at least one particle, loop over the particle list
-                    num_particles = self.voxel_has_particle[ipos]
-                    if num_particles != 0:
-                        num_particles = ti.length(
-                            self.pid.parent(),
-                            ipos - ti.Vector(self.particle_grid_offset))
-                    for k in range(num_particles):
-                        p = self.pid[ipos, k]
-                        v = ti.Vector([0.0, 0.0, 0.0])
-                        if ti.static(self.enable_motion_blur):
-                            v = self.particle_v[p]
-                        x = self.particle_x[p] + t * v
-                        color = ti.cast(self.particle_color[p],
-                                        ti.u32) * (1 / 255.0)
-                        # ray-sphere intersection
-                        dist, poss = intersect_sphere(eye_pos, d, x,
-                                                      self.sphere_radius)
-                        hit_pos = poss
-                        if dist < closest_intersection and dist > 0:
-                            hit_pos = eye_pos + dist * d
-                            closest_intersection = dist
-                            normal = (hit_pos - x).normalized()
-                            c = color
-                else:
-                    running = 0
-                    normal = [0, 0, 0]
-
-                if closest_intersection < inf:
-                    running = 0
-                else:
-                    # hits nothing. Continue ray marching
-                    mm = ti.Vector([0, 0, 0])
-                    if dis[0] <= dis[1] and dis[0] <= dis[2]:
-                        mm[0] = 1
-                    elif dis[1] <= dis[0] and dis[1] <= dis[2]:
-                        mm[1] = 1
-                    else:
-                        mm[2] = 1
-                    dis += mm * rsign * rinv
-                    ipos += mm * rsign
-
-        return closest_intersection, normal, c
 
     @ti.func
     def next_hit(self, pos, d, t):
         closest = inf
         normal = ti.Vector([0.0, 0.0, 0.0])
         c = ti.Vector([0.0, 0.0, 0.0])
-        if ti.static(self.render_voxel):
-            closest, normal, c = self.dda_voxel(pos, d)
-        else:
-            closest, normal, c = self.dda_particle(pos, d, t)
+        closest, normal, c = self.dda_voxel(pos, d)
 
         if d[2] != 0:
             ray_closest = -(pos[2] + 5.5) / d[2]
@@ -544,19 +456,6 @@ class Renderer:
         for I in ti.grouped(self.voxel_has_particle):
             if self.voxel_has_particle[I]:
                 counter += 1
-
-        return counter
-
-    @ti.kernel
-    def total_inserted_particles(self) -> ti.i32:
-        counter = 0
-
-        for I in ti.grouped(self.voxel_has_particle):
-            if self.voxel_has_particle[I]:
-                num_particles = ti.length(
-                    self.pid.parent(),
-                    I - ti.Vector(self.particle_grid_offset))
-                counter += num_particles
 
         return counter
 
