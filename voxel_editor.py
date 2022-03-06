@@ -7,13 +7,13 @@ ti.init(arch=ti.vulkan)
 GRID_RES = 32
 SCREEN_RES = (640, 640)
 renderer = Renderer(dx=1 / GRID_RES,
-                    sphere_radius=0.3 / GRID_RES, res=SCREEN_RES)
+                    sphere_radius=0.3 / GRID_RES, res=SCREEN_RES, taichi_logo=False)
 
 
 window = ti.ui.Window("Voxel Editor", SCREEN_RES, vsync=True)
 selected_voxel_color = (0.2, 0.2, 0.2)
 
-SPP = 1
+SPP = 2
 
 
 def show_hud():
@@ -119,7 +119,8 @@ def main():
             renderer.set_look_at(*look_at)
             renderer.reset_framebuffer()
 
-        renderer.accumulate()
+        for i in range(SPP):
+            renderer.accumulate()
         img = renderer.fetch_image()
         canvas.set_image(img)
         window.show()

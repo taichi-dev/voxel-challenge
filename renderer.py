@@ -11,9 +11,6 @@ use_directional_light = True
 dist_limit = 100
 
 exposure = 1.5
-light_direction = [1.2, 0.3, 0.7]
-light_direction_noise = 0.03
-light_color = [1.0, 1.0, 1.0]
 
 
 @ti.data_oriented
@@ -36,6 +33,11 @@ class Renderer:
         self.fov = ti.field(dtype=ti.f32, shape=())
         self.voxel_color = ti.Vector.field(3, dtype=ti.u8)
         self.voxel_material = ti.field(dtype=ti.u8)
+
+
+        self.light_direction = ti.Vector.field(3, dtype=ti.f32, shape=())
+        self.light_direction_noise = ti.field(dtype=ti.f32, shape=())
+        self.light_color = ti.Vector.field(3, dtype=ti.f32, shape=())
 
         self.cast_voxel_hit = ti.field(ti.i32, shape=())
         self.cast_voxel_index = ti.Vector.field(3, ti.i32, shape=())
@@ -74,6 +76,10 @@ class Renderer:
         self._rendered_image = ti.Vector.field(3, float, res)
         self.set_up(0, 1, 0)
         self.set_fov(0.23)
+
+        self.light_direction[None] = [1.2, 0.3, 0.7]
+        self.light_direction_noise[None] = 0.03
+        self.light_color[None] = [1.0, 1.0, 1.0]
 
     @ti.func
     def inside_grid(self, ipos):
@@ -344,15 +350,15 @@ class Renderer:
                             ti.random() - 0.5,
                             ti.random() - 0.5,
                             ti.random() - 0.5
-                        ]) * light_direction_noise
-                        direct = (ti.Vector(light_direction) +
+                        ]) * self.light_direction_noise[None]
+                        direct = (self.light_direction[None] +
                                   dir_noise).normalized()
                         dot = direct.dot(normal)
                         if dot > 0:
                             hit_light_ = 0
                             dist, _, _, hit_light_ = self.next_hit(pos, direct, t)
                             if dist > dist_limit:
-                                contrib += throughput * ti.Vector(light_color) * dot
+                                contrib += throughput * self.light_color[None] * dot
                 else:  # hit sky or light
                     hit_sky = 1
                     depth = max_ray_depth
