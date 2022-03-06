@@ -386,48 +386,6 @@ class Renderer:
             self.color_buffer[u, v] += contrib
 
     @ti.kernel
-    def initialize_particle_grid(self):
-        for p in range(self.num_particles[None]):
-            v = ti.Vector([0.0, 0.0, 0.0])
-            if ti.static(self.enable_motion_blur):
-                v = self.particle_v[p]
-            x = self.particle_x[p]
-            ipos = ti.floor(x * self.inv_dx).cast(ti.i32)
-
-            offset_begin = shutter_begin * self.shutter_time * v
-            offset_end = (shutter_begin + 1.0) * self.shutter_time * v
-            offset_begin_grid = offset_begin
-            offset_end_grid = offset_end
-
-            for k in ti.static(range(3)):
-                if offset_end_grid[k] < offset_begin_grid[k]:
-                    t = offset_end_grid[k]
-                    offset_end_grid[k] = offset_begin_grid[k]
-                    offset_begin_grid[k] = t
-
-            offset_begin_grid = int(ti.floor(
-                offset_begin_grid * self.inv_dx)) - 1
-            offset_end_grid = int(ti.ceil(offset_end_grid * self.inv_dx)) + 2
-
-            for i in range(offset_begin_grid[0], offset_end_grid[0]):
-                for j in range(offset_begin_grid[1], offset_end_grid[1]):
-                    for k in range(offset_begin_grid[2], offset_end_grid[2]):
-                        offset = ti.Vector([i, j, k])
-                        box_ipos = ipos + offset
-                        if self.inside_particle_grid(box_ipos):
-                            box_min = box_ipos * self.dx
-                            box_max = (box_ipos +
-                                       ti.Vector([1, 1, 1])) * self.dx
-                            if sphere_aabb_intersect_motion(
-                                    box_min, box_max, x + offset_begin,
-                                    x + offset_end, self.sphere_radius):
-                                self.voxel_has_particle[box_ipos] = 1
-                                self.voxel_grid_density[box_ipos] = 1
-                                ti.append(
-                                    self.pid.parent(), box_ipos -
-                                    ti.Vector(self.particle_grid_offset), p)
-
-    @ti.kernel
     def copy(self, img: ti.ext_arr(), samples: ti.i32):
         for i, j in self.color_buffer:
             u = 1.0 * i / self.res[0]
@@ -440,14 +398,6 @@ class Renderer:
             for c in ti.static(range(3)):
                 img[i, j, c] = ti.sqrt(self.color_buffer[i, j][c] * darken *
                                        exposure / samples)
-
-    @ti.kernel
-    def initialize_particle(self, x: ti.ext_arr(),
-                            color: ti.ext_arr(), begin: ti.i32, end: ti.i32):
-        for i in range(begin, end):
-            for c in ti.static(range(3)):
-                self.particle_x[i][c] = x[i - begin, c]
-                self.particle_color[i][c] = color[i - begin, c]
 
     @ti.kernel
     def total_non_empty_voxels(self) -> ti.i32:
@@ -475,27 +425,14 @@ class Renderer:
         assert num_part <= self.max_num_particles
 
         for i in range(3):
-            # bbox values must be multiples of self.dx
-            # bbox values are the min and max particle coordinates, with 3 self.dx margin
-            self.bbox[0][i] = (math.floor(np_x[:, i].min() * self.inv_dx) -
-                               3.0) * self.dx
-            self.bbox[1][i] = (math.floor(np_x[:, i].max() * self.inv_dx) +
-                               3.0) * self.dx
+            self.bbox[0][i] = -1
+            self.bbox[1][i] = 1
             print(f'Bounding box dim {i}: {self.bbox[0][i]} {self.bbox[1][i]}')
 
-        # TODO: assert bounds
+        for i in range(10):
+            self.voxel_has_particle[(2, i, 2)] = 1
+            self.voxel_grid_density[(2, i, 2)] = 1
 
-        self.num_particles[None] = num_part
-        print('num_input_particles =', num_part)
-
-        slice_size = 1000000
-        num_slices = (num_part + slice_size - 1) // slice_size
-        for i in range(num_slices):
-            begin = slice_size * i
-            end = min(num_part, begin + slice_size)
-            self.initialize_particle(np_x[begin:end],
-                                     np_color[begin:end], begin, end)
-        self.initialize_particle_grid()
 
     def render_frame(self, spp):
         last_t = 0
