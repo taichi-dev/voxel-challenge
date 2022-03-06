@@ -22,7 +22,7 @@ def main():
     renderer.set_camera_pos(3.24, 1.86, -4.57)
     renderer.floor_height[None] = -5e-3
 
-    renderer.initialize_particles_from_taichi_elements()
+    renderer.initialize_grid()
 
     total_voxels = renderer.total_non_empty_voxels()
     print('Total nonempty voxels', total_voxels)

@@ -2,8 +2,7 @@ import taichi as ti
 import numpy as np
 import math
 import time
-from renderer_utils import out_dir, ray_aabb_intersection, inf, eps, \
-  intersect_sphere, sphere_aabb_intersect_motion, inside_taichi
+from renderer_utils import out_dir, ray_aabb_intersection, inf, eps, inside_taichi
 
 max_ray_depth = 4
 use_directional_light = True
@@ -42,17 +41,11 @@ class Renderer:
         self.voxel_has_particle = ti.field(dtype=ti.i32)
         self.fov = ti.field(dtype=ti.f32, shape=())
 
-        self.particle_x = ti.Vector.field(3, dtype=ti.f32)
-        if self.enable_motion_blur:
-            self.particle_v = ti.Vector.field(3, dtype=ti.f32)
-        self.particle_color = ti.Vector.field(3, dtype=ti.u8)
-        self.pid = ti.field(ti.i32)
         self.num_particles = ti.field(ti.i32, shape=())
-
 
         self.voxel_edges = 0.1
 
-        self.particle_grid_res = 2048
+        self.particle_grid_res = 128
 
         self.dx = dx
         self.inv_dx = 1 / self.dx
@@ -85,35 +78,21 @@ class Renderer:
         self.block_offset = [
             o // self.block_size for o in self.particle_grid_offset
         ]
-        self.particle_bucket = ti.root.pointer(
-            ti.ijk, self.particle_grid_res // self.block_size)
-
-        self.particle_bucket.dense(ti.ijk, self.block_size).dynamic(
-            ti.l, self.max_num_particles_per_cell,
-            chunk_size=32).place(self.pid,
-                                 offset=self.particle_grid_offset + [0])
 
         self.voxel_block_offset = [
             o // self.block_size for o in voxel_grid_offset
         ]
-        ti.root.pointer(ti.ijk,
+        ti.root.dense(ti.ijk,
                         self.particle_grid_res // self.block_size).dense(
                             ti.ijk,
                             self.block_size).place(self.voxel_has_particle,
                                                    offset=voxel_grid_offset)
-        voxel_block = ti.root.pointer(ti.ijk,
+        voxel_block = ti.root.dense(ti.ijk,
                                       self.voxel_grid_res // self.block_size)
 
         voxel_block.dense(ti.ijk,
                           self.block_size).place(self.voxel_grid_density,
                                                  offset=voxel_grid_offset)
-
-        particle = ti.root.dense(ti.l, self.max_num_particles)
-
-        particle.place(self.particle_x)
-        if self.enable_motion_blur:
-            particle.place(self.particle_v)
-        particle.place(self.particle_color)
 
         self.set_up(0, 1, 0)
         self.set_fov(0.23)
@@ -410,19 +389,12 @@ class Renderer:
         return counter
 
     def reset(self):
-        self.particle_bucket.deactivate_all()
-        self.voxel_grid_density.snode.parent(n=2).deactivate_all()
-        self.voxel_has_particle.snode.parent(n=2).deactivate_all()
         self.color_buffer.fill(0)
 
-    def initialize_particles_from_taichi_elements(self):
+    def initialize_grid(self):
         self.reset()
 
         np_x = np.array([[0.0, 0.0, 0.0]], dtype=np.float32)
-        np_color = np.array([[0, 255, 0]], dtype=np.uint8)
-        num_part = len(np_x)
-
-        assert num_part <= self.max_num_particles
 
         for i in range(3):
             self.bbox[0][i] = -1
@@ -432,7 +404,6 @@ class Renderer:
         for i in range(10):
             self.voxel_has_particle[(2, i, 2)] = 1
             self.voxel_grid_density[(2, i, 2)] = 1
-
 
     def render_frame(self, spp):
         last_t = 0
