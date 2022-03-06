@@ -405,8 +405,14 @@ class Renderer:
         """
         return (0, 0, 0), False
 
-    def add_voxel(self, ijk):
-        pass
+    def add_voxel(self, ijk, mat=1, color=(0.5, 0.5, 0.5)):
+        ijk = tuple(ijk)
+        self.voxel_material[ijk] = mat
+        self.voxel_color[ijk] = [int(color * 255) for _ in range(3)]
 
     def delete_voxel(self, ijk):
-        pass
+        self.voxel_material[tuple(ijk)] = 0
+
+    def set_voxel_color(self, ijk, color):
+        ijk = tuple(ijk)
+        self.voxel_color[ijk] = [int(color * 255) for _ in range(3)]
