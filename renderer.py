@@ -67,21 +67,8 @@ class Renderer:
         assert self.sphere_radius * 2 < self.dx
 
         ti.root.dense(ti.ij, res).place(self.color_buffer)
-
-        self.block_size = 4
-        self.block_offset = [
-            o // self.block_size for o in self.particle_grid_offset
-        ]
-
-        self.voxel_block_offset = [
-            o // self.block_size for o in voxel_grid_offset
-        ]
-        voxel_block = ti.root.dense(ti.ijk,
-                                    self.voxel_grid_res // self.block_size)
-
-        voxel_block.dense(ti.ijk,
-                          self.block_size).place(self.voxel_color, self.voxel_material,
-                                                 offset=voxel_grid_offset)
+        ti.root.dense(ti.ijk, self.voxel_grid_res).place(self.voxel_color, self.voxel_material,
+                                                         offset=voxel_grid_offset)
 
         self._rendered_image = ti.Vector.field(3, float, res)
         self.set_up(0, 1, 0)
@@ -417,3 +404,9 @@ class Renderer:
           bool: whether there is a voxel
         """
         return (0, 0, 0), False
+
+    def add_voxel(self, ijk):
+        pass
+
+    def delete_voxel(self, ijk):
+        pass

@@ -61,6 +61,8 @@ def main():
             pos = camera.update_camera()
             renderer.set_camera_pos(*pos)
             renderer.reset_framebuffer()
+        elif window.is_pressed(ti.ui.RMB):
+            print('right mouse clicked')
         renderer.accumulate()
         img = renderer.fetch_image()
         canvas.set_image(img)
