@@ -115,10 +115,13 @@ class Renderer:
             f = 1.0
 
         voxel_color = ti.Vector([0.0, 0.0, 0.0])
+        is_light = 0
         if self.inside_particle_grid(voxel_index):
             voxel_color = self.voxel_color[voxel_index] * (1.0 / 255)
+            if self.voxel_material[voxel_index] == 2:
+                is_light = 1
 
-        return voxel_color * (1.3 - 1.2 * f)
+        return voxel_color * (1.3 - 1.2 * f), is_light
 
     @ti.func
     def sdf(self, o):
@@ -194,6 +197,7 @@ class Renderer:
         inter, near, far = ray_aabb_intersection(bbox_min, bbox_max, eye_pos,
                                                  d)
         hit_distance = inf
+        hit_light = 0
         normal = ti.Vector([0.0, 0.0, 0.0])
         c = ti.Vector([0.0, 0.0, 0.0])
         if inter:
@@ -217,7 +221,7 @@ class Renderer:
                             rsign * 0.5) * rinv
                     hit_distance = mini.max() * self.voxel_dx + near
                     hit_pos = eye_pos + (hit_distance + 1e-3) * d
-                    c = self.voxel_surface_color(hit_pos)
+                    c, hit_light = self.voxel_surface_color(hit_pos)
                     running = 0
                 else:
                     mm = ti.Vector([0, 0, 0])
@@ -231,7 +235,7 @@ class Renderer:
                     ipos += mm * rsign
                     normal = -mm * rsign
                 i += 1
-        return hit_distance, normal, c
+        return hit_distance, normal, c, hit_light
 
     @ti.kernel
     def raycast(self, mouse_x: ti.i32, mouse_y: ti.i32, offset: ti.f32):
@@ -239,7 +243,7 @@ class Renderer:
         normal = ti.Vector([0.0, 0.0, 0.0])
         c = ti.Vector([0.0, 0.0, 0.0])
         d = self.get_cast_dir(mouse_x, mouse_y)
-        closest, normal, c = self.dda_voxel(self.camera_pos[None], d)
+        closest, normal, c, _ = self.dda_voxel(self.camera_pos[None], d)
 
         if closest < inf:
             self.cast_voxel_hit[None] = 1
@@ -262,7 +266,8 @@ class Renderer:
         closest = inf
         normal = ti.Vector([0.0, 0.0, 0.0])
         c = ti.Vector([0.0, 0.0, 0.0])
-        closest, normal, c = self.dda_voxel(pos, d)
+        hit_light = 0
+        closest, normal, c, hit_light = self.dda_voxel(pos, d)
 
         if d[2] != 0:
             ray_closest = -(pos[2] + 5.5) / d[2]
@@ -277,7 +282,7 @@ class Renderer:
             normal = self.sdf_normal(pos + d * closest)
             c = self.sdf_color(pos + d * closest)
 
-        return closest, normal, c
+        return closest, normal, c, hit_light
 
     @ti.kernel
     def set_camera_pos(self, x: ti.f32, y: ti.f32, z: ti.f32):
@@ -317,17 +322,19 @@ class Renderer:
 
             contrib = ti.Vector([0.0, 0.0, 0.0])
             throughput = ti.Vector([1.0, 1.0, 1.0])
+            c = ti.Vector([1.0, 1.0, 1.0])
 
             depth = 0
             hit_sky = 1
             ray_depth = 0
+            hit_light = 0
 
             while depth < max_ray_depth:
-                closest, normal, c = self.next_hit(pos, d, t)
+                closest, normal, c, hit_light = self.next_hit(pos, d, t)
                 hit_pos = pos + closest * d
                 depth += 1
                 ray_depth = depth
-                if normal.norm() != 0:
+                if not hit_light and normal.norm() != 0:
                     d = out_dir(normal)
                     pos = hit_pos + 1e-4 * d
                     throughput *= c
@@ -342,11 +349,11 @@ class Renderer:
                                   dir_noise).normalized()
                         dot = direct.dot(normal)
                         if dot > 0:
-                            dist, _, _ = self.next_hit(pos, direct, t)
+                            hit_light_ = 0
+                            dist, _, _, hit_light_ = self.next_hit(pos, direct, t)
                             if dist > dist_limit:
-                                contrib += throughput * ti.Vector(
-                                    light_color) * dot
-                else:  # hit sky
+                                contrib += throughput * ti.Vector(light_color) * dot
+                else:  # hit sky or light
                     hit_sky = 1
                     depth = max_ray_depth
 
@@ -357,17 +364,11 @@ class Renderer:
                 else:
                     throughput /= max_c
 
-            if hit_sky:
-                if ray_depth != 1:
-                    # contrib *= max(d[1], 0.05)
-                    pass
-                else:
-                    # directly hit sky
-                    pass
+            if hit_light:
+                contrib += throughput * c
             else:
                 throughput *= 0
 
-            # contrib += throughput
             self.color_buffer[u, v] += contrib
 
     @ti.kernel
@@ -389,7 +390,7 @@ class Renderer:
         counter = 0
 
         for I in ti.grouped(self.voxel_material):
-            if self.voxel_material[I] > 0.0:
+            if self.voxel_material[I] > 0:
                 counter += 1
 
         return counter
@@ -404,7 +405,10 @@ class Renderer:
             for j in range(0, 10):
                 for k in range(-10, 10):
                     if random.random() < 0.1:
-                        self.voxel_material[i, j, k] = 1
+                        if random.random() < 0.4:
+                            self.voxel_material[i, j, k] = 2 # light
+                        else:
+                            self.voxel_material[i, j, k] = 1
                         self.voxel_color[i, j, k] = [
                             int(random.random() * 255) for _ in range(3)]
 
