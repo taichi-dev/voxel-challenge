@@ -1,3 +1,5 @@
 .idea
 *.pyc
 outputs
+.DS_Store
+imgui.ini
