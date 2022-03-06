@@ -408,3 +408,11 @@ class Renderer:
     def fetch_image(self):
         self._render_to_image(self.current_spp)
         return self._rendered_image
+
+    def raycast_voxel_grid(self, mouse_pos):
+      """
+      Returns:
+        ijk: of the selected grid pos
+        bool: whether there is a voxel
+      """
+      return (0, 0, 0), False
