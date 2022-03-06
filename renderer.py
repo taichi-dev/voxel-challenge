@@ -5,9 +5,6 @@ import time
 from renderer_utils import out_dir, ray_aabb_intersection, inf, eps, \
   intersect_sphere, sphere_aabb_intersect_motion, inside_taichi
 
-res = 1280, 720
-aspect_ratio = res[0] / res[1]
-
 max_ray_depth = 4
 use_directional_light = True
 
@@ -29,7 +26,10 @@ class Renderer:
                  render_voxel=False,
                  shutter_time=1e-3,
                  taichi_logo=True,
+                 res=None,
                  max_num_particles_million=128):
+        self.res = res
+        self.aspect_ratio = res[0] / res[1]
         self.vignette_strength = 0.9
         self.vignette_radius = 0.0
         self.vignette_center = [0.5, 0.5]
@@ -410,9 +410,9 @@ class Renderer:
             fov = self.fov[None]
             pos = self.camera_pos[None]
             d = (self.look_at[None] - self.camera_pos[None]).normalized()
-            fu = (2 * fov * (u + ti.random(ti.f32)) / res[1] -
-                  fov * aspect_ratio - 1e-5)
-            fv = 2 * fov * (v + ti.random(ti.f32)) / res[1] - fov - 1e-5
+            fu = (2 * fov * (u + ti.random(ti.f32)) / self.res[1] -
+                  fov * self.aspect_ratio - 1e-5)
+            fv = 2 * fov * (v + ti.random(ti.f32)) / self.res[1] - fov - 1e-5
             du = d.cross(self.up[None]).normalized()
             dv = du.cross(d).normalized()
             d = (d + fu * du + fv * dv).normalized()
@@ -518,8 +518,8 @@ class Renderer:
     @ti.kernel
     def copy(self, img: ti.ext_arr(), samples: ti.i32):
         for i, j in self.color_buffer:
-            u = 1.0 * i / res[0]
-            v = 1.0 * j / res[1]
+            u = 1.0 * i / self.res[0]
+            v = 1.0 * j / self.res[1]
 
             darken = 1.0 - self.vignette_strength * max((ti.sqrt(
                 (u - self.vignette_center[0])**2 +
@@ -611,6 +611,6 @@ class Renderer:
                         (time.time() - last_t) * 1000 / interval))
                 last_t = time.time()
 
-        img = np.zeros((res[0], res[1], 3), dtype=np.float32)
+        img = np.zeros((self.res[0], self.res[1], 3), dtype=np.float32)
         self.copy(img, spp)
         return img
