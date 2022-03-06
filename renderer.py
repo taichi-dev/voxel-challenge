@@ -372,7 +372,7 @@ class Renderer:
 
             for c in ti.static(range(3)):
                 self._rendered_image[i, j][c] = ti.sqrt(self.color_buffer[i, j][c] * darken *
-                                                       exposure / samples)
+                                                        exposure / samples)
 
     @ti.kernel
     def total_non_empty_voxels(self) -> ti.i32:
@@ -395,7 +395,8 @@ class Renderer:
                 for k in range(-10, 10):
                     if random.random() < 0.1:
                         self.voxel_material[i, j, k] = 1
-                        self.voxel_color[i, j, k] = [int(random.random() * 255) for _ in range(3)]
+                        self.voxel_color[i, j, k] = [
+                            int(random.random() * 255) for _ in range(3)]
 
     def reset_framebuffer(self):
         self.current_spp = 0
@@ -410,9 +411,9 @@ class Renderer:
         return self._rendered_image
 
     def raycast_voxel_grid(self, mouse_pos):
-      """
-      Returns:
-        ijk: of the selected grid pos
-        bool: whether there is a voxel
-      """
-      return (0, 0, 0), False
+        """
+        Returns:
+          ijk: of the selected grid pos
+          bool: whether there is a voxel
+        """
+        return (0, 0, 0), False
