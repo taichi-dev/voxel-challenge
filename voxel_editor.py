@@ -24,13 +24,25 @@ def show_hud():
     window.GUI.end()
 
 
+def np_normalize(v):
+    # https://stackoverflow.com/a/51512965/12003165
+    return v / np.sqrt(np.sum(v**2))
+
+
 class Camera:
-    def __init__(self, window):
+    def __init__(self, window, up):
         self._window = window
         self._camera_pos = np.array((3.24, 1.86, -4.57))
+        self._lookat_pos = np.array((0.0, 0.0, 0.0))
+        self._up = np_normalize(np.array(up))
         self._last_mouse_pos = np.array(self._window.get_cursor_pos())
 
     def update_camera(self):
+        res = self._update_by_mouse()
+        res = res or self._update_by_wasd()
+        return res
+
+    def _update_by_mouse(self):
         win = self._window
         if not win.is_pressed(ti.ui.CTRL):
             return False
@@ -43,14 +55,39 @@ class Camera:
         self._camera_pos += delta
         return True
 
+    def _update_by_wasd(self):
+        win = self._window
+        fwd = np_normalize(self._lookat_pos - self._camera_pos)
+        left = np.cross(self._up, fwd)
+        lut = [
+            ('w', fwd),
+            ('a', left),
+            ('s', -fwd),
+            ('d', -left),
+        ]
+        dir = None
+        for key, d in lut:
+            if win.is_pressed(key):
+                dir = d
+                break
+        if dir is None:
+            return False
+        dir = np.array(dir) * 0.05
+        self._lookat_pos += dir
+        self._camera_pos += dir
+        return True
+
     @property
     def position(self):
         return self._camera_pos
 
+    @property
+    def look_at(self):
+        return self._lookat_pos
+
 
 def main():
-    # last_camera_pos = np.array((3.24, 1.86, -4.57))
-    camera = Camera(window)
+    camera = Camera(window, up=(0, 1, 0))
     renderer.set_camera_pos(*camera.position)
     renderer.floor_height[None] = -5e-3
     renderer.initialize_grid()
@@ -78,6 +115,8 @@ def main():
                 renderer.reset_framebuffer()
         if camera.update_camera():
             renderer.set_camera_pos(*camera.position)
+            look_at = camera.look_at
+            renderer.set_look_at(*look_at)
             renderer.reset_framebuffer()
 
         renderer.accumulate()

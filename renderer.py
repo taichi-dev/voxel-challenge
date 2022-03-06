@@ -288,7 +288,7 @@ class Renderer:
         self.up[None] = ti.Vector([x, y, z]).normalized()
 
     @ti.kernel
-    def look_at(self, x: ti.f32, y: ti.f32, z: ti.f32):
+    def set_look_at(self, x: ti.f32, y: ti.f32, z: ti.f32):
         self.look_at[None] = ti.Vector([x, y, z])
 
     @ti.kernel
