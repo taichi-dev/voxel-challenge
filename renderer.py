@@ -5,23 +5,22 @@ import random
 import time
 from renderer_utils import out_dir, ray_aabb_intersection, inf, eps, inside_taichi
 
-max_ray_depth = 4
+MAX_RAY_DEPTH = 4
 use_directional_light = True
 
-dist_limit = 100
+DIS_LIMIT = 100
 
-exposure = 1.5
+EXPOSURE = 1.5
 
 
 @ti.data_oriented
 class Renderer:
     def __init__(self,
-                 dx=1 / 1024,
-                 sphere_radius=0.3 / 1024,
-                 taichi_logo=True,
-                 res=None):
-        self.res = res
-        self.aspect_ratio = res[0] / res[1]
+                 grid_res,
+                 image_res,
+                 taichi_logo=True):
+        self.image_res = image_res
+        self.aspect_ratio = image_res[0] / image_res[1]
         self.vignette_strength = 0.9
         self.vignette_radius = 0.0
         self.vignette_center = [0.5, 0.5]
@@ -34,7 +33,6 @@ class Renderer:
         self.voxel_color = ti.Vector.field(3, dtype=ti.u8)
         self.voxel_material = ti.field(dtype=ti.u8)
 
-
         self.light_direction = ti.Vector.field(3, dtype=ti.f32, shape=())
         self.light_direction_noise = ti.field(dtype=ti.f32, shape=())
         self.light_color = ti.Vector.field(3, dtype=ti.f32, shape=())
@@ -44,11 +42,6 @@ class Renderer:
 
         self.voxel_edges = 0.1
 
-        self.particle_grid_res = 128
-
-        self.dx = dx
-        self.inv_dx = 1 / self.dx
-
         self.camera_pos = ti.Vector.field(3, dtype=ti.f32, shape=())
         self.look_at = ti.Vector.field(3, dtype=ti.f32, shape=())
         self.up = ti.Vector.field(3, dtype=ti.f32, shape=())
@@ -56,24 +49,16 @@ class Renderer:
         self.floor_height = ti.field(dtype=ti.f32, shape=())
 
         self.supporter = 2
-        self.sphere_radius = sphere_radius
-        self.particle_grid_offset = [
-            -self.particle_grid_res // 2 for _ in range(3)
-        ]
-
-        self.voxel_grid_res = self.particle_grid_res
+        self.voxel_dx = 1 / grid_res
+        self.voxel_inv_dx = grid_res
+        self.voxel_grid_res = grid_res
         voxel_grid_offset = [-self.voxel_grid_res // 2 for _ in range(3)]
 
-        self.voxel_dx = self.dx
-        self.voxel_inv_dx = 1 / self.voxel_dx
-
-        assert self.sphere_radius * 2 < self.dx
-
-        ti.root.dense(ti.ij, res).place(self.color_buffer)
+        ti.root.dense(ti.ij, image_res).place(self.color_buffer)
         ti.root.dense(ti.ijk, self.voxel_grid_res).place(self.voxel_color, self.voxel_material,
                                                          offset=voxel_grid_offset)
 
-        self._rendered_image = ti.Vector.field(3, float, res)
+        self._rendered_image = ti.Vector.field(3, float, image_res)
         self.set_up(0, 1, 0)
         self.set_fov(0.23)
 
@@ -105,7 +90,7 @@ class Renderer:
 
     @ti.func
     def voxel_surface_color(self, pos):
-        p = pos * self.inv_dx
+        p = pos * self.voxel_inv_dx
         voxel_index = ti.floor(p).cast(ti.i32)
 
         p -= ti.floor(p)
@@ -155,10 +140,10 @@ class Renderer:
         dist = 0.0
         limit = 200
         while j < limit and self.sdf(p +
-                                     dist * d) > 1e-8 and dist < dist_limit:
+                                     dist * d) > 1e-8 and dist < DIS_LIMIT:
             dist += self.sdf(p + dist * d)
             j += 1
-        if dist > dist_limit:
+        if dist > DIS_LIMIT:
             dist = inf
         return dist
 
@@ -254,7 +239,7 @@ class Renderer:
         if closest < inf:
             self.cast_voxel_hit[None] = 1
             p = self.camera_pos[None] + (closest + offset) * d
-            p = p * self.inv_dx
+            p = p * self.voxel_inv_dx
             voxel_index = ti.floor(p).cast(ti.i32)
             self.cast_voxel_index[None] = voxel_index
         else:
@@ -262,7 +247,7 @@ class Renderer:
 
     @ti.func
     def inside_particle_grid(self, ipos):
-        pos = ipos * self.dx
+        pos = ipos * self.voxel_dx
         return self.bbox[0][0] <= pos[0] and pos[0] < self.bbox[1][
             0] and self.bbox[0][1] <= pos[1] and pos[1] < self.bbox[1][
                 1] and self.bbox[0][2] <= pos[2] and pos[2] < self.bbox[1][2]
@@ -283,7 +268,7 @@ class Renderer:
                 c = ti.Vector([0.6, 0.7, 0.7])
 
         ray_march_dist = self.ray_march(pos, d)
-        if ray_march_dist < dist_limit and ray_march_dist < closest:
+        if ray_march_dist < DIS_LIMIT and ray_march_dist < closest:
             closest = ray_march_dist
             normal = self.sdf_normal(pos + d * closest)
             c = self.sdf_color(pos + d * closest)
@@ -310,9 +295,9 @@ class Renderer:
     def get_cast_dir(self, u, v):
         fov = self.fov[None]
         d = (self.look_at[None] - self.camera_pos[None]).normalized()
-        fu = (2 * fov * (u + ti.random(ti.f32)) / self.res[1] -
+        fu = (2 * fov * (u + ti.random(ti.f32)) / self.image_res[1] -
               fov * self.aspect_ratio - 1e-5)
-        fv = 2 * fov * (v + ti.random(ti.f32)) / self.res[1] - fov - 1e-5
+        fv = 2 * fov * (v + ti.random(ti.f32)) / self.image_res[1] - fov - 1e-5
         du = d.cross(self.up[None]).normalized()
         dv = du.cross(d).normalized()
         d = (d + fu * du + fv * dv).normalized()
@@ -331,11 +316,9 @@ class Renderer:
             c = ti.Vector([1.0, 1.0, 1.0])
 
             depth = 0
-            hit_sky = 1
-            ray_depth = 0
             hit_light = 0
 
-            while depth < max_ray_depth:
+            while depth < MAX_RAY_DEPTH:
                 closest, normal, c, hit_light = self.next_hit(pos, d, t)
                 hit_pos = pos + closest * d
                 depth += 1
@@ -356,16 +339,17 @@ class Renderer:
                         dot = direct.dot(normal)
                         if dot > 0:
                             hit_light_ = 0
-                            dist, _, _, hit_light_ = self.next_hit(pos, direct, t)
-                            if dist > dist_limit:
-                                contrib += throughput * self.light_color[None] * dot
+                            dist, _, _, hit_light_ = self.next_hit(
+                                pos, direct, t)
+                            if dist > DIS_LIMIT:
+                                contrib += throughput * \
+                                    self.light_color[None] * dot
                 else:  # hit sky or light
-                    hit_sky = 1
-                    depth = max_ray_depth
+                    depth = MAX_RAY_DEPTH
 
                 max_c = throughput.max()
                 if ti.random() > max_c:
-                    depth = max_ray_depth
+                    depth = MAX_RAY_DEPTH
                     throughput = [0, 0, 0]
                 else:
                     throughput /= max_c
@@ -380,8 +364,8 @@ class Renderer:
     @ti.kernel
     def _render_to_image(self, samples: ti.i32):
         for i, j in self.color_buffer:
-            u = 1.0 * i / self.res[0]
-            v = 1.0 * j / self.res[1]
+            u = 1.0 * i / self.image_res[0]
+            v = 1.0 * j / self.image_res[1]
 
             darken = 1.0 - self.vignette_strength * max((ti.sqrt(
                 (u - self.vignette_center[0])**2 +
@@ -389,7 +373,7 @@ class Renderer:
 
             for c in ti.static(range(3)):
                 self._rendered_image[i, j][c] = ti.sqrt(self.color_buffer[i, j][c] * darken *
-                                                        exposure / samples)
+                                                        EXPOSURE / samples)
 
     @ti.kernel
     def total_non_empty_voxels(self) -> ti.i32:
@@ -412,7 +396,7 @@ class Renderer:
                 for k in range(-10, 10):
                     if random.random() < 0.1:
                         if random.random() < 0.4:
-                            self.voxel_material[i, j, k] = 2 # light
+                            self.voxel_material[i, j, k] = 2  # light
                         else:
                             self.voxel_material[i, j, k] = 1
                         self.voxel_color[i, j, k] = [
@@ -437,8 +421,7 @@ class Renderer:
           solid: return the first solid cell or the last empty cell along the ray
 
         Returns:
-          hit: hit or not
-          ijk: of the selected grid pos
+          ijk: of the selected grid pos, None if not found
         """
         if solid:
             offset = 1e-3
@@ -448,9 +431,8 @@ class Renderer:
         self.raycast(mouse_pos[0], mouse_pos[1], offset)
 
         if self.cast_voxel_hit[None]:
-            return True, self.cast_voxel_index[None]
-        else:
-            return False, None
+            return self.cast_voxel_index[None]
+        return None
 
     def add_voxel(self, ijk, mat=1, color=(0.5, 0.5, 0.5)):
         ijk = tuple(ijk)
