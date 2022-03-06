@@ -16,8 +16,9 @@ EXPOSURE = 1.5
 @ti.data_oriented
 class Renderer:
     def __init__(self,
-                 grid_res,
+                 dx,
                  image_res,
+                 up,
                  taichi_logo=True):
         self.image_res = image_res
         self.aspect_ratio = image_res[0] / image_res[1]
@@ -49,9 +50,10 @@ class Renderer:
         self.floor_height = ti.field(dtype=ti.f32, shape=())
 
         self.supporter = 2
-        self.voxel_dx = 1 / grid_res
-        self.voxel_inv_dx = grid_res
-        self.voxel_grid_res = grid_res
+        # What's the difference between `voxel_inv_dx` and `voxel_grid_res`...?
+        self.voxel_dx = dx
+        self.voxel_inv_dx = 1 / dx
+        self.voxel_grid_res = 128
         voxel_grid_offset = [-self.voxel_grid_res // 2 for _ in range(3)]
 
         ti.root.dense(ti.ij, image_res).place(self.color_buffer)
@@ -59,7 +61,7 @@ class Renderer:
                                                          offset=voxel_grid_offset)
 
         self._rendered_image = ti.Vector.field(3, float, image_res)
-        self.set_up(0, 1, 0)
+        self.set_up(*up)
         self.set_fov(0.23)
 
         self.light_direction[None] = [1.2, 0.3, 0.7]

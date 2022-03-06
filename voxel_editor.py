@@ -4,9 +4,10 @@ from renderer import Renderer
 
 ti.init(arch=ti.vulkan)
 
-GRID_RES = 64
+VOXEL_DX = 1 / 32
 SCREEN_RES = (640, 640)
 SPP = 2
+UP_DIR = (0, 1, 0)
 
 window = ti.ui.Window("Voxel Editor", SCREEN_RES, vsync=True)
 selected_voxel_color = (0.2, 0.2, 0.2)
@@ -89,9 +90,11 @@ class Camera:
 
 def main():
     global in_edit_mode
-    camera = Camera(window, up=(0, 1, 0))
-    renderer = Renderer(grid_res=GRID_RES,
-                        image_res=SCREEN_RES, taichi_logo=False)
+    camera = Camera(window, up=UP_DIR)
+    renderer = Renderer(dx=VOXEL_DX,
+                        image_res=SCREEN_RES,
+                        up=UP_DIR,
+                        taichi_logo=False)
     renderer.set_camera_pos(*camera.position)
     renderer.floor_height[None] = -5e-3
     renderer.initialize_grid()
