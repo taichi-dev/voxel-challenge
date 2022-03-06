@@ -2,10 +2,8 @@ import taichi as ti
 import numpy as np
 import math
 import time
-from engine.renderer_utils import out_dir, ray_aabb_intersection, inf, eps, \
+from renderer_utils import out_dir, ray_aabb_intersection, inf, eps, \
   intersect_sphere, sphere_aabb_intersect_motion, inside_taichi
-
-from engine.particle_io import ParticleIO
 
 res = 1280, 720
 aspect_ratio = res[0] / res[1]
@@ -532,7 +530,7 @@ class Renderer:
                                        exposure / samples)
 
     @ti.kernel
-    def initialize_particle(self, x: ti.ext_arr(), v: ti.ext_arr(),
+    def initialize_particle(self, x: ti.ext_arr(),
                             color: ti.ext_arr(), begin: ti.i32, end: ti.i32):
         for i in range(begin, end):
             for c in ti.static(range(3)):
@@ -568,10 +566,11 @@ class Renderer:
         self.voxel_has_particle.snode.parent(n=2).deactivate_all()
         self.color_buffer.fill(0)
 
-    def initialize_particles_from_taichi_elements(self, particle_fn):
+    def initialize_particles_from_taichi_elements(self):
         self.reset()
 
-        np_x, np_color = ParticleIO.read_particles_3d(particle_fn)
+        np_x = np.array([[0.0, 0.0, 0.0]], dtype=np.float32)
+        np_color = np.array([[0, 255, 0]], dtype=np.uint8)
         num_part = len(np_x)
 
         assert num_part <= self.max_num_particles
