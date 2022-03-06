@@ -31,12 +31,17 @@ class Camera:
         self._last_mouse_pos = np.array(self._window.get_cursor_pos())
 
     def update_camera(self):
-        mouse_pos = np.array(window.get_cursor_pos())
+        win = self._window
+        if not win.is_pressed(ti.ui.CTRL):
+            return False
+        if not win.is_pressed(ti.ui.LMB):
+            return False
+        mouse_pos = np.array(win.get_cursor_pos())
         delta2d = mouse_pos - self._last_mouse_pos
         delta = np.array([delta2d[0], delta2d[1], 0]) * 2
         self._last_mouse_pos = mouse_pos
         self._camera_pos += delta
-        return self._camera_pos
+        return True
 
     @property
     def position(self):
@@ -57,12 +62,10 @@ def main():
 
     while window.running:
         show_hud()
-        if window.is_pressed(ti.ui.LMB):
-            pos = camera.update_camera()
-            renderer.set_camera_pos(*pos)
+        if camera.update_camera():
+            renderer.set_camera_pos(*camera.position)
             renderer.reset_framebuffer()
-        elif window.is_pressed(ti.ui.RMB):
-            print('right mouse clicked')
+
         renderer.accumulate()
         img = renderer.fetch_image()
         canvas.set_image(img)
