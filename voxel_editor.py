@@ -3,12 +3,9 @@ import math
 import taichi as ti
 import numpy as np
 from renderer import Renderer
-from collections import namedtuple
-
-ti.init(arch=ti.vulkan)
 
 VOXEL_DX = 1 / 32
-SCREEN_RES = (640, 640)
+SCREEN_RES = (800, 800)
 SPP = 2
 UP_DIR = (0, 1, 0)
 
@@ -127,18 +124,35 @@ class HudManager:
     def update(self):
         res = HudManager.UpdateStatus()
         win = self._window
-        win.GUI.begin('Options', 0.05, 0.05, 0.3, 0.2)
-        label = 'View' if self.in_edit_mode else 'Edit'
+        win.GUI.begin('Options', 0.02, 0.9, 0.15, 0.08)
+        label = 'To View Mode' if self.in_edit_mode else 'To Edit Mode'
         if win.GUI.button(label):
             self.in_edit_mode = not self.in_edit_mode
             res.edit_mode_changed = True
-        self.voxel_color = win.GUI.color_edit_3(
-            'Voxel', self.voxel_color)
+        # self.voxel_color = win.GUI.color_edit_3(
+        #     'Voxel', self.voxel_color)
         win.GUI.end()
         return res
 
 
+def print_help():
+    msg = '''
+=========================== Voxel Editor ===========================
+Camera:
+* Press Ctrl + Left Mouse to rotate the camera
+* Press WASD to move the camera
+
+Edit Mode:
+* Press Left Mouse to add a voxel
+* Press Right Mouse to remove a highlighted voxel
+====================================================================
+    '''
+    print(msg)
+
+
 def main():
+    ti.init(arch=ti.vulkan)
+    print_help()
     window = ti.ui.Window("Voxel Editor", SCREEN_RES, vsync=True)
     camera = Camera(window, up=UP_DIR)
     hud_mgr = HudManager(window)
@@ -166,7 +180,6 @@ def main():
             if window.is_pressed(ti.ui.LMB):
                 ijk = renderer.raycast_voxel_grid(mouse_pos_ss, solid=False)
                 if ijk is not None:
-                    print(f'LMB hit! ijk={ijk}')
                     renderer.add_voxel(ijk)
             elif window.is_pressed(ti.ui.RMB):
                 if ijk is not None:
