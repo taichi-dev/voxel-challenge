@@ -243,7 +243,8 @@ class Renderer:
         normal = ti.Vector([0.0, 0.0, 0.0])
         c = ti.Vector([0.0, 0.0, 0.0])
         d = self.get_cast_dir(mouse_x, mouse_y)
-        closest, normal, c, _, vx_idx = self.dda_voxel(self.camera_pos[None], d)
+        closest, normal, c, _, vx_idx = self.dda_voxel(
+            self.camera_pos[None], d)
 
         if closest < inf:
             self.cast_voxel_hit[None] = 1
@@ -448,6 +449,11 @@ class Renderer:
         if self.cast_voxel_hit[None]:
             return self.cast_voxel_index[None]
         return None
+
+    @ti.kernel
+    def clear_cast_voxel(self):
+        self.cast_voxel_hit[None] = 0
+        self.cast_voxel_index[None] = ti.Vector([0, 0, 0])
 
     def add_voxel(self, ijk, mat=1, color=(0.5, 0.5, 0.5)):
         ijk = tuple(ijk)

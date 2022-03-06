@@ -1,7 +1,9 @@
+from curses import napms
 import math
 import taichi as ti
 import numpy as np
 from renderer import Renderer
+from collections import namedtuple
 
 ti.init(arch=ti.vulkan)
 
@@ -9,22 +11,6 @@ VOXEL_DX = 1 / 32
 SCREEN_RES = (640, 640)
 SPP = 2
 UP_DIR = (0, 1, 0)
-
-window = ti.ui.Window("Voxel Editor", SCREEN_RES, vsync=True)
-selected_voxel_color = (0.2, 0.2, 0.2)
-in_edit_mode = False
-
-
-def show_hud():
-    global selected_voxel_color
-    global in_edit_mode
-    window.GUI.begin("Options", 0.05, 0.05, 0.3, 0.2)
-    label = 'View' if in_edit_mode else 'Edit'
-    if window.GUI.button(label):
-        in_edit_mode = not in_edit_mode
-    selected_voxel_color = window.GUI.color_edit_3(
-        "Voxel", selected_voxel_color)
-    window.GUI.end()
 
 
 def np_normalize(v):
@@ -128,9 +114,34 @@ class Camera:
         return np.cross(self._up, tgtdir)
 
 
+class HudManager:
+    def __init__(self, window):
+        self._window = window
+        self.voxel_color = (0.2, 0.2, 0.2)
+        self.in_edit_mode = False
+
+    class UpdateStatus:
+        def __init__(self):
+            self.edit_mode_changed = False
+
+    def update(self):
+        res = HudManager.UpdateStatus()
+        win = self._window
+        win.GUI.begin("Options", 0.05, 0.05, 0.3, 0.2)
+        label = 'View' if self.in_edit_mode else 'Edit'
+        if win.GUI.button(label):
+            self.in_edit_mode = not self.in_edit_mode
+            res.edit_mode_changed = True
+        self.voxel_color = win.GUI.color_edit_3(
+            "Voxel", self.voxel_color)
+        win.GUI.end()
+        return res
+
+
 def main():
-    global in_edit_mode
+    window = ti.ui.Window("Voxel Editor", SCREEN_RES, vsync=True)
     camera = Camera(window, up=UP_DIR)
+    hud_mgr = HudManager(window)
     renderer = Renderer(dx=VOXEL_DX,
                         image_res=SCREEN_RES,
                         up=UP_DIR,
@@ -142,11 +153,15 @@ def main():
     canvas = window.get_canvas()
 
     while window.running:
-        show_hud()
+        hud_res = hud_mgr.update()
+        in_edit_mode = hud_mgr.in_edit_mode
         mouse_pos = tuple(window.get_cursor_pos())
         # screen space
         mouse_pos_ss = [int(mouse_pos[i] * SCREEN_RES[i]) for i in range(2)]
-        renderer.raycast_voxel_grid(mouse_pos_ss, solid=True)
+        if hud_mgr.in_edit_mode:
+            renderer.raycast_voxel_grid(mouse_pos_ss, solid=True)
+        else:
+            pass
         if window.is_pressed(ti.ui.LMB):
             find_solid = not in_edit_mode
             ijk = renderer.raycast_voxel_grid(mouse_pos_ss, solid=find_solid)
