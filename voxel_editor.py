@@ -6,19 +6,23 @@ ti.init(arch=ti.vulkan)
 
 GRID_RES = 32
 SCREEN_RES = (640, 640)
+SPP = 2
+
 renderer = Renderer(dx=1 / GRID_RES,
                     sphere_radius=0.3 / GRID_RES, res=SCREEN_RES, taichi_logo=False)
 
 
 window = ti.ui.Window("Voxel Editor", SCREEN_RES, vsync=True)
 selected_voxel_color = (0.2, 0.2, 0.2)
-
-SPP = 2
-
+in_edit_mode = False
 
 def show_hud():
     global selected_voxel_color
+    global in_edit_mode
     window.GUI.begin("Options", 0.05, 0.05, 0.3, 0.2)
+    label = 'Edit' if in_edit_mode else 'View'
+    if window.GUI.button(label):
+      in_edit_mode = not in_edit_mode
     selected_voxel_color = window.GUI.color_edit_3(
         "Voxel", selected_voxel_color)
     window.GUI.end()
@@ -87,14 +91,12 @@ class Camera:
 
 
 def main():
+    global in_edit_mode
     camera = Camera(window, up=(0, 1, 0))
     renderer.set_camera_pos(*camera.position)
     renderer.floor_height[None] = -5e-3
     renderer.initialize_grid()
 
-    total_voxels = renderer.total_non_empty_voxels()
-    last_mouse_pos = np.array(window.get_cursor_pos())
-    print('Total nonempty voxels', total_voxels)
     canvas = window.get_canvas()
 
     while window.running:
@@ -102,10 +104,14 @@ def main():
         mouse_pos = tuple(window.get_cursor_pos())
         mouse_pos = [int(mouse_pos[i] * SCREEN_RES[i]) for i in range(2)]
         if window.is_pressed(ti.ui.LMB):
-            hit, ijk, = renderer.raycast_voxel_grid(mouse_pos, solid=False)
+            find_solid = not in_edit_mode
+            hit, ijk, = renderer.raycast_voxel_grid(mouse_pos, solid=find_solid)
             if hit:
                 print(f'LMB hit! ijk={ijk}')
-                renderer.add_voxel(ijk)
+                if in_edit_mode:
+                  renderer.add_voxel(ijk)
+                else:
+                  renderer.set_voxel_color(ijk, (0.8, 0.6, .5))
                 renderer.reset_framebuffer()
         elif window.is_pressed(ti.ui.RMB):
             hit, ijk, = renderer.raycast_voxel_grid(mouse_pos, solid=True)
