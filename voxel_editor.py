@@ -24,9 +24,29 @@ def show_hud():
     window.GUI.end()
 
 
+class Camera:
+    def __init__(self, window):
+        self._window = window
+        self._camera_pos = np.array((3.24, 1.86, -4.57))
+        self._last_mouse_pos = np.array(self._window.get_cursor_pos())
+
+    def update_camera(self):
+        mouse_pos = np.array(window.get_cursor_pos())
+        delta2d = mouse_pos - self._last_mouse_pos
+        delta = np.array([delta2d[0], delta2d[1], 0]) * 2
+        self._last_mouse_pos = mouse_pos
+        self._camera_pos += delta
+        return self._camera_pos
+
+    @property
+    def position(self):
+        return self._camera_pos
+
+
 def main():
-    last_camera_pos = np.array((3.24, 1.86, -4.57))
-    renderer.set_camera_pos(*last_camera_pos)
+    # last_camera_pos = np.array((3.24, 1.86, -4.57))
+    camera = Camera(window)
+    renderer.set_camera_pos(*camera.position)
     renderer.floor_height[None] = -5e-3
     renderer.initialize_grid()
 
@@ -38,14 +58,8 @@ def main():
     while window.running:
         show_hud()
         if window.is_pressed(ti.ui.LMB):
-            mouse_pos = np.array(window.get_cursor_pos())
-            delta2d = mouse_pos - last_mouse_pos
-            delta = np.array([delta2d[0], delta2d[1], 0]) * 2
-            print(
-                f'mouse_pos={mouse_pos} delta={delta} last_camera_pos={last_camera_pos}')
-            last_mouse_pos = mouse_pos
-            last_camera_pos += delta
-            renderer.set_camera_pos(*last_camera_pos)
+            pos = camera.update_camera()
+            renderer.set_camera_pos(*pos)
             renderer.reset_framebuffer()
         renderer.accumulate()
         img = renderer.fetch_image()
