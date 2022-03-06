@@ -144,10 +144,12 @@ def main():
     while window.running:
         show_hud()
         mouse_pos = tuple(window.get_cursor_pos())
-        mouse_pos = [int(mouse_pos[i] * SCREEN_RES[i]) for i in range(2)]
+        # screen space
+        mouse_pos_ss = [int(mouse_pos[i] * SCREEN_RES[i]) for i in range(2)]
+        renderer.raycast_voxel_grid(mouse_pos_ss, solid=True)
         if window.is_pressed(ti.ui.LMB):
             find_solid = not in_edit_mode
-            ijk = renderer.raycast_voxel_grid(mouse_pos, solid=find_solid)
+            ijk = renderer.raycast_voxel_grid(mouse_pos_ss, solid=find_solid)
             if ijk is not None:
                 if in_edit_mode:
                     renderer.add_voxel(ijk)
@@ -155,9 +157,8 @@ def main():
                     renderer.set_voxel_color(ijk, (0.8, 0.6, .5))
                 renderer.reset_framebuffer()
         elif window.is_pressed(ti.ui.RMB):
-            ijk = renderer.raycast_voxel_grid(mouse_pos, solid=True)
+            ijk = renderer.raycast_voxel_grid(mouse_pos_ss, solid=True)
             if ijk is not None:
-                print(f'RMB hit! ijk={ijk}')
                 renderer.delete_voxel(ijk)
                 renderer.reset_framebuffer()
         if camera.update_camera():
@@ -166,7 +167,7 @@ def main():
             renderer.set_look_at(*look_at)
             renderer.reset_framebuffer()
 
-        for i in range(SPP):
+        for _ in range(SPP):
             renderer.accumulate()
         img = renderer.fetch_image()
         canvas.set_image(img)

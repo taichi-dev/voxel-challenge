@@ -91,11 +91,16 @@ class Renderer:
         return ret
 
     @ti.func
-    def voxel_surface_color(self, pos):
+    def _to_voxel_index(self, pos):
         p = pos * self.voxel_inv_dx
         voxel_index = ti.floor(p).cast(ti.i32)
+        return voxel_index
 
+    @ti.func
+    def voxel_surface_color(self, pos):
+        p = pos * self.voxel_inv_dx
         p -= ti.floor(p)
+        voxel_index = self._to_voxel_index(pos)
 
         boundary = self.voxel_edges
         count = 0
@@ -193,6 +198,7 @@ class Renderer:
         hit_light = 0
         normal = ti.Vector([0.0, 0.0, 0.0])
         c = ti.Vector([0.0, 0.0, 0.0])
+        voxel_index = ti.Vector([0, 0, 0])
         if inter:
             near = max(0, near)
 
@@ -214,6 +220,7 @@ class Renderer:
                             rsign * 0.5) * rinv
                     hit_distance = mini.max() * self.voxel_dx + near
                     hit_pos = eye_pos + (hit_distance + 1e-3) * d
+                    voxel_index = self._to_voxel_index(hit_pos)
                     c, hit_light = self.voxel_surface_color(hit_pos)
                     running = 0
                 else:
@@ -228,7 +235,7 @@ class Renderer:
                     ipos += mm * rsign
                     normal = -mm * rsign
                 i += 1
-        return hit_distance, normal, c, hit_light
+        return hit_distance, normal, c, hit_light, voxel_index
 
     @ti.kernel
     def raycast(self, mouse_x: ti.i32, mouse_y: ti.i32, offset: ti.f32):
@@ -236,14 +243,11 @@ class Renderer:
         normal = ti.Vector([0.0, 0.0, 0.0])
         c = ti.Vector([0.0, 0.0, 0.0])
         d = self.get_cast_dir(mouse_x, mouse_y)
-        closest, normal, c, _ = self.dda_voxel(self.camera_pos[None], d)
+        closest, normal, c, _, vx_idx = self.dda_voxel(self.camera_pos[None], d)
 
         if closest < inf:
             self.cast_voxel_hit[None] = 1
-            p = self.camera_pos[None] + (closest + offset) * d
-            p = p * self.voxel_inv_dx
-            voxel_index = ti.floor(p).cast(ti.i32)
-            self.cast_voxel_index[None] = voxel_index
+            self.cast_voxel_index[None] = vx_idx
         else:
             self.cast_voxel_hit[None] = 0
 
@@ -260,7 +264,7 @@ class Renderer:
         normal = ti.Vector([0.0, 0.0, 0.0])
         c = ti.Vector([0.0, 0.0, 0.0])
         hit_light = 0
-        closest, normal, c, hit_light = self.dda_voxel(pos, d)
+        closest, normal, c, hit_light, vx_idx = self.dda_voxel(pos, d)
 
         if d[2] != 0:
             ray_closest = -(pos[2] + 5.5) / d[2]
@@ -275,6 +279,15 @@ class Renderer:
             normal = self.sdf_normal(pos + d * closest)
             c = self.sdf_color(pos + d * closest)
 
+        if self.cast_voxel_hit[None]:
+            cast_vx_idx = self.cast_voxel_index[None]
+            is_cast_vx = True
+            for i in ti.static(range(3)):
+                if cast_vx_idx[i] != vx_idx[i]:
+                    is_cast_vx = False
+            if is_cast_vx:
+                c = ti.Vector([1.0, 0.65, 0.0])
+                hit_light = 1
         return closest, normal, c, hit_light
 
     @ti.kernel
