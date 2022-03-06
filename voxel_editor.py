@@ -9,8 +9,7 @@ from renderer import Renderer
 res = 32
 screen_res = (640, 360)
 renderer = Renderer(dx=1 / res,
-                    sphere_radius=0.3 / res, res=screen_res,
-                    max_num_particles_million=1)
+                    sphere_radius=0.3 / res, res=screen_res)
 
 
 

@@ -1,6 +1,7 @@
 import taichi as ti
 import numpy as np
 import math
+import random
 import time
 from renderer_utils import out_dir, ray_aabb_intersection, inf, eps, inside_taichi
 
@@ -8,8 +9,6 @@ max_ray_depth = 4
 use_directional_light = True
 
 dist_limit = 100
-# TODO: why doesn't it render normally when shutter_begin = -1?
-shutter_begin = -0.5
 
 exposure = 1.5
 light_direction = [1.2, 0.3, 0.7]
@@ -22,18 +21,14 @@ class Renderer:
     def __init__(self,
                  dx=1 / 1024,
                  sphere_radius=0.3 / 1024,
-                 shutter_time=1e-3,
                  taichi_logo=True,
-                 res=None,
-                 max_num_particles_million=128):
+                 res=None):
         self.res = res
         self.aspect_ratio = res[0] / res[1]
         self.vignette_strength = 0.9
         self.vignette_radius = 0.0
         self.vignette_center = [0.5, 0.5]
         self.taichi_logo = taichi_logo
-        self.shutter_time = shutter_time  # usually half the frame time
-        self.enable_motion_blur = self.shutter_time != 0.0
 
         self.color_buffer = ti.Vector.field(3, dtype=ti.f32)
         self.bbox = ti.Vector.field(3, dtype=ti.f32, shape=2)
@@ -64,8 +59,6 @@ class Renderer:
 
         self.voxel_grid_res = self.particle_grid_res
         voxel_grid_offset = [-self.voxel_grid_res // 2 for _ in range(3)]
-        self.max_num_particles_per_cell = 8192 * 1024
-        self.max_num_particles = 1024 * 1024 * max_num_particles_million
 
         self.voxel_dx = self.dx
         self.voxel_inv_dx = 1 / self.voxel_dx
@@ -74,7 +67,7 @@ class Renderer:
 
         ti.root.dense(ti.ij, res).place(self.color_buffer)
 
-        self.block_size = 8
+        self.block_size = 4
         self.block_offset = [
             o // self.block_size for o in self.particle_grid_offset
         ]
@@ -307,7 +300,7 @@ class Renderer:
             du = d.cross(self.up[None]).normalized()
             dv = du.cross(d).normalized()
             d = (d + fu * du + fv * dv).normalized()
-            t = (ti.random() + shutter_begin) * self.shutter_time
+            t = 0.0
 
             contrib = ti.Vector([0.0, 0.0, 0.0])
             throughput = ti.Vector([1.0, 1.0, 1.0])
@@ -394,16 +387,17 @@ class Renderer:
     def initialize_grid(self):
         self.reset()
 
-        np_x = np.array([[0.0, 0.0, 0.0]], dtype=np.float32)
-
         for i in range(3):
             self.bbox[0][i] = -1
             self.bbox[1][i] = 1
             print(f'Bounding box dim {i}: {self.bbox[0][i]} {self.bbox[1][i]}')
 
         for i in range(10):
-            self.voxel_has_particle[(2, i, 2)] = 1
-            self.voxel_grid_density[(2, i, 2)] = 1
+            for j in range(10):
+                for k in range(10):
+                    if random.random() < 0.1:
+                        self.voxel_has_particle[(i, j, k)] = 1
+                        self.voxel_grid_density[(i, j, k)] = 1
 
     def render_frame(self, spp):
         last_t = 0
