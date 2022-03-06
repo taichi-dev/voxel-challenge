@@ -127,13 +127,13 @@ class HudManager:
     def update(self):
         res = HudManager.UpdateStatus()
         win = self._window
-        win.GUI.begin("Options", 0.05, 0.05, 0.3, 0.2)
+        win.GUI.begin('Options', 0.05, 0.05, 0.3, 0.2)
         label = 'View' if self.in_edit_mode else 'Edit'
         if win.GUI.button(label):
             self.in_edit_mode = not self.in_edit_mode
             res.edit_mode_changed = True
         self.voxel_color = win.GUI.color_edit_3(
-            "Voxel", self.voxel_color)
+            'Voxel', self.voxel_color)
         win.GUI.end()
         return res
 
@@ -154,32 +154,33 @@ def main():
 
     while window.running:
         hud_res = hud_mgr.update()
-        in_edit_mode = hud_mgr.in_edit_mode
-        mouse_pos = tuple(window.get_cursor_pos())
-        # screen space
-        mouse_pos_ss = [int(mouse_pos[i] * SCREEN_RES[i]) for i in range(2)]
+        should_reset_framebuffer = False
         if hud_mgr.in_edit_mode:
-            renderer.raycast_voxel_grid(mouse_pos_ss, solid=True)
-        else:
-            pass
-        if window.is_pressed(ti.ui.LMB):
-            find_solid = not in_edit_mode
-            ijk = renderer.raycast_voxel_grid(mouse_pos_ss, solid=find_solid)
-            if ijk is not None:
-                if in_edit_mode:
-                    renderer.add_voxel(ijk)
-                else:
-                    renderer.set_voxel_color(ijk, (0.8, 0.6, .5))
-                renderer.reset_framebuffer()
-        elif window.is_pressed(ti.ui.RMB):
+            should_reset_framebuffer = True
+
+            mouse_pos = tuple(window.get_cursor_pos())
+            # screen space
+            mouse_pos_ss = [int(mouse_pos[i] * SCREEN_RES[i])
+                            for i in range(2)]
             ijk = renderer.raycast_voxel_grid(mouse_pos_ss, solid=True)
-            if ijk is not None:
-                renderer.delete_voxel(ijk)
-                renderer.reset_framebuffer()
+            if window.is_pressed(ti.ui.LMB):
+                ijk = renderer.raycast_voxel_grid(mouse_pos_ss, solid=False)
+                if ijk is not None:
+                    print(f'LMB hit! ijk={ijk}')
+                    renderer.add_voxel(ijk)
+            elif window.is_pressed(ti.ui.RMB):
+                if ijk is not None:
+                    renderer.delete_voxel(ijk)
+        elif hud_res.edit_mode_changed:
+            renderer.clear_cast_voxel()
+
         if camera.update_camera():
             renderer.set_camera_pos(*camera.position)
             look_at = camera.look_at
             renderer.set_look_at(*look_at)
+            should_reset_framebuffer = True
+
+        if should_reset_framebuffer:
             renderer.reset_framebuffer()
 
         for _ in range(SPP):

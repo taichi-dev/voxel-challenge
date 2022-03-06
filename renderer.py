@@ -248,7 +248,8 @@ class Renderer:
 
         if closest < inf:
             self.cast_voxel_hit[None] = 1
-            self.cast_voxel_index[None] = vx_idx
+            p = self.camera_pos[None] + (closest + offset) * d
+            self.cast_voxel_index[None] = self._to_voxel_index(p)
         else:
             self.cast_voxel_hit[None] = 0
 
