@@ -32,7 +32,6 @@ def main():
     last_mouse_pos = np.array(window.get_cursor_pos())
     print('Total nonempty voxels', total_voxels)
     canvas = window.get_canvas()
-    img = renderer.render_frame(spp=SPP)
 
     while window.running:
         show_hud()
@@ -44,8 +43,9 @@ def main():
           last_mouse_pos = mouse_pos
           last_camera_pos += delta
           renderer.set_camera_pos(*last_camera_pos)
-          renderer.reset()
-          img = renderer.render_frame(spp=SPP)
+          renderer.reset_framebuffer()
+        renderer.accumulate()
+        img = renderer.fetch_image()
         canvas.set_image(img)
         window.show()
 

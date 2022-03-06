@@ -29,6 +29,7 @@ class Renderer:
         self.vignette_radius = 0.0
         self.vignette_center = [0.5, 0.5]
         self.taichi_logo = taichi_logo
+        self.current_spp = 0
 
         self.color_buffer = ti.Vector.field(3, dtype=ti.f32)
         self.bbox = ti.Vector.field(3, dtype=ti.f32, shape=2)
@@ -383,36 +384,27 @@ class Renderer:
 
         return counter
 
-    def reset(self):
-        self.color_buffer.fill(0)
-
     def initialize_grid(self):
-        self.reset()
-
         for i in range(3):
             self.bbox[0][i] = -1
             self.bbox[1][i] = 1
             print(f'Bounding box dim {i}: {self.bbox[0][i]} {self.bbox[1][i]}')
 
-        for i in range(10):
-            for j in range(10):
-                for k in range(10):
+        for i in range(-10, 10):
+            for j in range(0, 10):
+                for k in range(-10, 10):
                     if random.random() < 0.1:
                         self.voxel_material[i, j, k] = 1
                         self.voxel_color[i, j, k] = [int(random.random() * 255) for _ in range(3)]
 
-    def render_frame(self, spp):
-        last_t = 0
-        for i in range(1, 1 + spp):
-            self.render()
+    def reset_framebuffer(self):
+        self.current_spp = 0
+        self.color_buffer.fill(0)
 
-            interval = 20
-            if i % interval == 0:
-                if last_t != 0:
-                    ti.sync()
-                    print("time per spp = {:.2f} ms".format(
-                        (time.time() - last_t) * 1000 / interval))
-                last_t = time.time()
+    def accumulate(self):
+        self.render()
+        self.current_spp += 1
 
-        self._render_to_image(spp)
+    def fetch_image(self):
+        self._render_to_image(self.current_spp)
         return self._rendered_image
