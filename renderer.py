@@ -283,11 +283,7 @@ class Renderer:
 
         if self.cast_voxel_hit[None]:
             cast_vx_idx = self.cast_voxel_index[None]
-            is_cast_vx = True
-            for i in ti.static(range(3)):
-                if cast_vx_idx[i] != vx_idx[i]:
-                    is_cast_vx = False
-            if is_cast_vx:
+            if all(cast_vx_idx == vx_idx):
                 c = ti.Vector([1.0, 0.65, 0.0])
                 hit_light = 1
         return closest, normal, c, hit_light
