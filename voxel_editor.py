@@ -195,7 +195,7 @@ class EditModeProcessor:
                 if ijk is not None:
                     renderer.delete_voxel(ijk)
                     self._event_handled = True
-        elif win.get_events(ti.ui.RELEASE) or mov_delta > 1e-5:
+        elif win.get_events(ti.ui.RELEASE) or mov_delta > 2e-4:
             self._event_handled = False
 
 
