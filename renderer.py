@@ -10,7 +10,7 @@ use_directional_light = True
 
 DIS_LIMIT = 100
 
-EXPOSURE = 1.5
+EXPOSURE = 3
 
 
 @ti.data_oriented
@@ -41,7 +41,7 @@ class Renderer:
         self.cast_voxel_hit = ti.field(ti.i32, shape=())
         self.cast_voxel_index = ti.Vector.field(3, ti.i32, shape=())
 
-        self.voxel_edges = 0.1
+        self.voxel_edges = 0.06
 
         self.camera_pos = ti.Vector.field(3, dtype=ti.f32, shape=())
         self.look_at = ti.Vector.field(3, dtype=ti.f32, shape=())
@@ -66,7 +66,8 @@ class Renderer:
 
         self.light_direction[None] = [1.2, 0.3, 0.7]
         self.light_direction_noise[None] = 0.03
-        self.light_color[None] = [1.0, 1.0, 1.0]
+        L = 0.0 # Turn off directional light
+        self.light_color[None] = [L, L, L]
 
     @ti.func
     def inside_grid(self, ipos):
@@ -404,16 +405,23 @@ class Renderer:
             self.bbox[1][i] = 1
             print(f'Bounding box dim {i}: {self.bbox[0][i]} {self.bbox[1][i]}')
 
-        for i in range(-10, 10):
-            for j in range(0, 10):
-                for k in range(-10, 10):
-                    if random.random() < 0.1:
-                        if random.random() < 0.4:
-                            self.voxel_material[i, j, k] = 2  # light
-                        else:
-                            self.voxel_material[i, j, k] = 1
-                        self.voxel_color[i, j, k] = [
-                            int(random.random() * 255) for _ in range(3)]
+        for i in range(31):
+            for j in range(31):
+                is_light = int(j % 10 != 0)
+                self.voxel_material[j, i, -30] = is_light + 1
+                self.voxel_color[j, i, -30] = [255, 255, 255]
+
+        for i in range(0, 31):
+            for j in range(0, 31):
+                index = (i, 0, j - 30)
+                self.voxel_material[index] = 1
+                c = (i + j) % 2
+                self.voxel_color[index] = [c * 55 + 200, (1 - c) * 55 + 200, 255]
+
+        for i in range(31):
+            index = (i, 1, 6)
+            self.voxel_material[index] = 2
+            self.voxel_color[index] = [255, 255, 255]
 
     def reset_framebuffer(self):
         self.current_spp = 0

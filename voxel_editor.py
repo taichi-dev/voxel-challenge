@@ -5,8 +5,8 @@ import numpy as np
 from renderer import Renderer
 
 VOXEL_DX = 1 / 32
-SCREEN_RES = (800, 800)
-SPP = 2
+SCREEN_RES = (1280, 720)
+SPP = 10
 UP_DIR = (0, 1, 0)
 
 
@@ -35,7 +35,7 @@ def np_rotate_matrix(axis, theta):
 class Camera:
     def __init__(self, window, up):
         self._window = window
-        self._camera_pos = np.array((1.0, 1.5, -2.0))
+        self._camera_pos = np.array((1.0, 1.5, 2.0))
         self._lookat_pos = np.array((0.0, 0.0, 0.0))
         self._up = np_normalize(np.array(up))
         self._last_mouse_pos = None
@@ -79,6 +79,8 @@ class Camera:
             ('a', leftdir),
             ('s', -tgtdir),
             ('d', -leftdir),
+            ('e', [0, 1, 0]),
+            ('q', [0, -1, 0]),
         ]
         dir = None
         for key, d in lut:
@@ -114,7 +116,6 @@ class Camera:
 class HudManager:
     def __init__(self, window):
         self._window = window
-        self.voxel_color = (0.2, 0.2, 0.2)
         self.in_edit_mode = False
 
     class UpdateStatus:
@@ -156,6 +157,7 @@ class EditModeProcessor:
         self._renderer = renderer
         self._event_handled = False
         self._last_mouse_pos = None
+        self._mouse_moved = False
 
     def process(self):
         win = self._window
@@ -165,6 +167,7 @@ class EditModeProcessor:
         if self._last_mouse_pos is not None:
             d = mouse_pos - self._last_mouse_pos
             mov_delta = np.dot(d, d)
+        self._mouse_moved = (mouse_pos != self._last_mouse_pos).any()
         # TODO: Use a state machine to handle the logic
         if not self._event_handled:
             self._last_mouse_pos = mouse_pos
@@ -175,7 +178,7 @@ class EditModeProcessor:
             if win.is_pressed(ti.ui.LMB):
                 ijk = renderer.raycast_voxel_grid(mouse_pos_ss, solid=False)
                 if ijk is not None:
-                    renderer.add_voxel(ijk)
+                    renderer.add_voxel(ijk, color=(0.6, 0.7, 0.9))
                     self._event_handled = True
             elif win.is_pressed(ti.ui.RMB):
                 if ijk is not None:
@@ -205,8 +208,9 @@ def main():
         hud_res = hud_mgr.update()
         should_reset_framebuffer = False
         if hud_mgr.in_edit_mode:
-            should_reset_framebuffer = True
             edit_proc.process()
+            should_reset_framebuffer = edit_proc._event_handled or edit_proc._mouse_moved
+            # should_reset_framebuffer = True
         elif hud_res.edit_mode_changed:
             renderer.clear_cast_voxel()
 
