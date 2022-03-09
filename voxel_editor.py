@@ -33,12 +33,17 @@ def np_rotate_matrix(axis, theta):
 
 
 class Camera:
+
     def __init__(self, window, up):
         self._window = window
         self._camera_pos = np.array((1.0, 1.5, 2.0))
         self._lookat_pos = np.array((0.0, 0.0, 0.0))
         self._up = np_normalize(np.array(up))
         self._last_mouse_pos = None
+
+    @property
+    def mouse_exclusive_owner(self):
+        return self._window.is_pressed(ti.ui.CTRL)
 
     def update_camera(self):
         res = self._update_by_mouse()
@@ -47,7 +52,7 @@ class Camera:
 
     def _update_by_mouse(self):
         win = self._window
-        if not win.is_pressed(ti.ui.CTRL) or not win.is_pressed(ti.ui.LMB):
+        if not self.mouse_exclusive_owner or not win.is_pressed(ti.ui.LMB):
             self._last_mouse_pos = None
             return False
         mouse_pos = np.array(win.get_cursor_pos())
@@ -64,7 +69,9 @@ class Camera:
         rotx = np_rotate_matrix(self._up, dx)
         roty = np_rotate_matrix(leftdir, dy)
 
-        out_dir_homo = np.array(list(out_dir) + [0.0, ])
+        out_dir_homo = np.array(list(out_dir) + [
+            0.0,
+        ])
         new_out_dir = np.matmul(np.matmul(roty, rotx), out_dir_homo)[:3]
         self._camera_pos = self._lookat_pos + new_out_dir
 
@@ -114,11 +121,13 @@ class Camera:
 
 
 class HudManager:
+
     def __init__(self, window):
         self._window = window
         self.in_edit_mode = False
 
     class UpdateStatus:
+
         def __init__(self):
             self.edit_mode_changed = False
 
@@ -152,6 +161,7 @@ Edit Mode:
 
 
 class EditModeProcessor:
+
     def __init__(self, window, renderer):
         self._window = window
         self._renderer = renderer
@@ -172,8 +182,9 @@ class EditModeProcessor:
         if not self._event_handled:
             self._last_mouse_pos = mouse_pos
             # screen space
-            mouse_pos_ss = [int(mouse_pos[i] * SCREEN_RES[i])
-                            for i in range(2)]
+            mouse_pos_ss = [
+                int(mouse_pos[i] * SCREEN_RES[i]) for i in range(2)
+            ]
             ijk = renderer.raycast_voxel_grid(mouse_pos_ss, solid=True)
             if win.is_pressed(ti.ui.LMB):
                 ijk = renderer.raycast_voxel_grid(mouse_pos_ss, solid=False)
@@ -207,7 +218,7 @@ def main():
     while window.running:
         hud_res = hud_mgr.update()
         should_reset_framebuffer = False
-        if hud_mgr.in_edit_mode:
+        if hud_mgr.in_edit_mode and not camera.mouse_exclusive_owner:
             edit_proc.process()
             should_reset_framebuffer = edit_proc._event_handled or edit_proc._mouse_moved
             # should_reset_framebuffer = True
