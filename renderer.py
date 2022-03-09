@@ -1,9 +1,14 @@
-import taichi as ti
-import numpy as np
 import math
 import random
 import time
-from renderer_utils import out_dir, ray_aabb_intersection, inf, eps, inside_taichi
+from datetime import datetime
+from pathlib import Path
+
+import numpy as np
+import taichi as ti
+
+from renderer_utils import (eps, inf, inside_taichi, out_dir,
+                            ray_aabb_intersection)
 
 MAX_RAY_DEPTH = 4
 use_directional_light = True
@@ -474,3 +479,28 @@ class Renderer:
     def set_voxel_color(self, ijk, color):
         ijk = tuple(ijk)
         self.voxel_color[ijk] = [int(color[i] * 255) for i in range(3)]
+
+    def spit_local(self, dir: Path):
+        """
+        Spit to `dir` on local storage.
+
+        Depends on the filesystem, this function is likely to
+        hit permission issues, when it happens, run the editor
+        with sudo permission.
+        """
+        to_save = dir / Path(f'taichi_voxel_{datetime.now().strftime("%Y%m%d_%H%M%S")}.npz')
+        np.savez(to_save, voxel_material=self.voxel_material.to_numpy(), voxel_color=self.voxel_color.to_numpy())
+        print(f"Saved to {to_save}")
+
+    def slurp_local(self, to_slurp: Path):
+        """Slurp from local storage for `to_slurp`."""
+        if to_slurp.exists():
+           slurped = np.load(to_slurp, allow_pickle=False)
+           _voxel_material, _voxel_color = slurped["voxel_material"], slurped["voxel_color"]
+           self.voxel_material.from_numpy(_voxel_material)
+           self.voxel_color.from_numpy(_voxel_color)
+        #    self.clear_cast_voxel()
+           self.reset_framebuffer()
+           print(f"Loaded from {to_slurp}")
+        else:
+            print(f"Failed to load from {to_slurp}")

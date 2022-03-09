@@ -1,7 +1,12 @@
-from curses import napms
 import math
-import taichi as ti
+from curses import napms
+from functools import partial
+from pathlib import Path
+from typing import Callable
+
 import numpy as np
+import taichi as ti
+
 from renderer import Renderer
 
 VOXEL_DX = 1 / 32
@@ -122,9 +127,14 @@ class Camera:
 
 class HudManager:
 
-    def __init__(self, window):
+    def __init__(self, window, save_func: Callable = None, load_func: Callable = None, saveslots: Path = None):
         self._window = window
         self.in_edit_mode = False
+        self.is_saveload_enabled = False
+        self.save_func = save_func or (lambda: print("Save func needs to be defined!"))
+        self.load_func = load_func or (lambda: print("Load func needs to be defined!"))
+        self.saveslots = saveslots or Path.home() / Path("./taichi_voxel_editor_saveslots")
+        self.saveslots.mkdir(parents=True, exist_ok=True)
 
     class UpdateStatus:
 
@@ -134,14 +144,25 @@ class HudManager:
     def update(self):
         res = HudManager.UpdateStatus()
         win = self._window
-        win.GUI.begin('Options', 0.02, 0.9, 0.15, 0.08)
+        win.GUI.begin('Options', 0.02, 0.8, 0.15, 0.15)
         label = 'To View Mode' if self.in_edit_mode else 'To Edit Mode'
         if win.GUI.button(label):
             self.in_edit_mode = not self.in_edit_mode
             res.edit_mode_changed = True
         # self.voxel_color = win.GUI.color_edit_3(
         #     'Voxel', self.voxel_color)
+        versioning = win.GUI.checkbox("Enable Save/Load", self.is_saveload_enabled)
         win.GUI.end()
+
+        if versioning:
+            win.GUI.begin("Save/Load", 0.02, 0.6, 0.25, 0.15)
+            self.is_saveload_enabled = True
+            if win.GUI.button("Save"):
+                self.save_func()
+            for f in self.saveslots.glob("taichi_voxel_*.npz"):
+                if win.GUI.button(f.stem):
+                    self.load_func(f)
+            win.GUI.end()
         return res
 
 
@@ -155,6 +176,9 @@ Camera:
 Edit Mode:
 * Press Left Mouse to add a voxel
 * Press Right Mouse to remove a highlighted voxel
+
+Save/Load:
+* By default, saved voxels will be stored under `~/taichi_voxel_editor_saveslots/`
 ====================================================================
     '''
     print(msg)
@@ -210,6 +234,11 @@ def main():
                         image_res=SCREEN_RES,
                         up=UP_DIR,
                         taichi_logo=False)
+    
+    # setup save/load funcs
+    hud_mgr.save_func = partial(renderer.spit_local, hud_mgr.saveslots)
+    hud_mgr.load_func = renderer.slurp_local
+
     renderer.set_camera_pos(*camera.position)
     renderer.floor_height[None] = -5e-3
     renderer.initialize_grid()
