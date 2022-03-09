@@ -169,7 +169,7 @@ class EditModeProcessor:
         self._last_mouse_pos = None
         self._mouse_moved = False
 
-    def process(self):
+    def process(self, mouse_exclusive_owner):
         win = self._window
         renderer = self._renderer
         mouse_pos = np.array(win.get_cursor_pos())
@@ -185,16 +185,17 @@ class EditModeProcessor:
             mouse_pos_ss = [
                 int(mouse_pos[i] * SCREEN_RES[i]) for i in range(2)
             ]
-            ijk = renderer.raycast_voxel_grid(mouse_pos_ss, solid=True)
-            if win.is_pressed(ti.ui.LMB):
-                ijk = renderer.raycast_voxel_grid(mouse_pos_ss, solid=False)
-                if ijk is not None:
-                    renderer.add_voxel(ijk, color=(0.6, 0.7, 0.9))
-                    self._event_handled = True
-            elif win.is_pressed(ti.ui.RMB):
-                if ijk is not None:
-                    renderer.delete_voxel(ijk)
-                    self._event_handled = True
+            if not mouse_exclusive_owner:
+                ijk = renderer.raycast_voxel_grid(mouse_pos_ss, solid=True)
+                if win.is_pressed(ti.ui.LMB):
+                    ijk = renderer.raycast_voxel_grid(mouse_pos_ss, solid=False)
+                    if ijk is not None:
+                        renderer.add_voxel(ijk, color=(0.6, 0.7, 0.9))
+                        self._event_handled = True
+                elif win.is_pressed(ti.ui.RMB):
+                    if ijk is not None:
+                        renderer.delete_voxel(ijk)
+                        self._event_handled = True
         elif win.get_events(ti.ui.RELEASE) or mov_delta > 2e-4:
             self._event_handled = False
 
@@ -218,8 +219,8 @@ def main():
     while window.running:
         hud_res = hud_mgr.update()
         should_reset_framebuffer = False
-        if hud_mgr.in_edit_mode and not camera.mouse_exclusive_owner:
-            edit_proc.process()
+        if hud_mgr.in_edit_mode:
+            edit_proc.process(camera.mouse_exclusive_owner)
             should_reset_framebuffer = edit_proc._event_handled or edit_proc._mouse_moved
             # should_reset_framebuffer = True
         elif hud_res.edit_mode_changed:

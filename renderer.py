@@ -282,11 +282,14 @@ class Renderer:
             normal = self.sdf_normal(pos + d * closest)
             c = self.sdf_color(pos + d * closest)
 
+        # Highlight the selected voxel
         if self.cast_voxel_hit[None]:
             cast_vx_idx = self.cast_voxel_index[None]
             if all(cast_vx_idx == vx_idx):
                 c = ti.Vector([1.0, 0.65, 0.0])
-                hit_light = 1
+                # For light sources, we actually invert the material to make it
+                # more obvious
+                hit_light = 1 - hit_light
         return closest, normal, c, hit_light
 
     @ti.kernel
