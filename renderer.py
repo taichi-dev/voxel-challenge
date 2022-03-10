@@ -20,11 +20,8 @@ EXPOSURE = 3
 
 @ti.data_oriented
 class Renderer:
-    def __init__(self,
-                 dx,
-                 image_res,
-                 up,
-                 taichi_logo=True):
+
+    def __init__(self, dx, image_res, up, taichi_logo=True):
         self.image_res = image_res
         self.aspect_ratio = image_res[0] / image_res[1]
         self.vignette_strength = 0.9
@@ -62,8 +59,10 @@ class Renderer:
         voxel_grid_offset = [-self.voxel_grid_res // 2 for _ in range(3)]
 
         ti.root.dense(ti.ij, image_res).place(self.color_buffer)
-        ti.root.dense(ti.ijk, self.voxel_grid_res).place(self.voxel_color, self.voxel_material,
-                                                         offset=voxel_grid_offset)
+        ti.root.dense(ti.ijk,
+                      self.voxel_grid_res).place(self.voxel_color,
+                                                 self.voxel_material,
+                                                 offset=voxel_grid_offset)
 
         self._rendered_image = ti.Vector.field(3, float, image_res)
         self.set_up(*up)
@@ -71,7 +70,7 @@ class Renderer:
 
         self.light_direction[None] = [1.2, 0.3, 0.7]
         self.light_direction_noise[None] = 0.03
-        L = 0.0 # Turn off directional light
+        L = 0.0  # Turn off directional light
         self.light_color[None] = [L, L, L]
 
     @ti.func
@@ -152,8 +151,7 @@ class Renderer:
         j = 0
         dist = 0.0
         limit = 200
-        while j < limit and self.sdf(p +
-                                     dist * d) > 1e-8 and dist < DIS_LIMIT:
+        while j < limit and self.sdf(p + dist * d) > 1e-8 and dist < DIS_LIMIT:
             dist += self.sdf(p + dist * d)
             j += 1
         if dist > DIS_LIMIT:
@@ -249,8 +247,8 @@ class Renderer:
         normal = ti.Vector([0.0, 0.0, 0.0])
         c = ti.Vector([0.0, 0.0, 0.0])
         d = self.get_cast_dir(mouse_x, mouse_y)
-        closest, normal, c, _, vx_idx = self.dda_voxel(
-            self.camera_pos[None], d)
+        closest, normal, c, _, vx_idx = self.dda_voxel(self.camera_pos[None],
+                                                       d)
 
         if closest < inf:
             self.cast_voxel_hit[None] = 1
@@ -394,8 +392,8 @@ class Renderer:
                 (v - self.vignette_center[1])**2) - self.vignette_radius), 0)
 
             for c in ti.static(range(3)):
-                self._rendered_image[i, j][c] = ti.sqrt(self.color_buffer[i, j][c] * darken *
-                                                        EXPOSURE / samples)
+                self._rendered_image[i, j][c] = ti.sqrt(
+                    self.color_buffer[i, j][c] * darken * EXPOSURE / samples)
 
     @ti.kernel
     def total_non_empty_voxels(self) -> ti.i32:
@@ -424,7 +422,9 @@ class Renderer:
                 index = (i, 0, j - 30)
                 self.voxel_material[index] = 1
                 c = (i + j) % 2
-                self.voxel_color[index] = [c * 55 + 200, (1 - c) * 55 + 200, 255]
+                self.voxel_color[index] = [
+                    c * 55 + 200, (1 - c) * 55 + 200, 255
+                ]
 
         for i in range(31):
             index = (i, 1, 6)
@@ -479,6 +479,11 @@ class Renderer:
     def set_voxel_color(self, ijk, color):
         ijk = tuple(ijk)
         self.voxel_color[ijk] = [int(color[i] * 255) for i in range(3)]
+
+    def get_voxel_color(self, ijk):
+        ijk = tuple(ijk)
+        res = self.voxel_color[ijk]
+        return tuple([float(x) / 255.0 for x in res])
 
     def spit_local(self, dir: Path):
         """

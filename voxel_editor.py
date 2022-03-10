@@ -13,7 +13,26 @@ VOXEL_DX = 1 / 32
 SCREEN_RES = (1280, 720)
 SPP = 10
 UP_DIR = (0, 1, 0)
+HELP_MSG = '''
+=========================== Voxel Editor ===========================
+Camera:
+* Press Ctrl + Left Mouse to rotate the camera
+* Press WASD to move the camera
 
+Edit Mode:
+* Move the mouse to highlight a voxel
+* When a voxel is highlighted:
+*   Press F to add a voxel around it
+*   Press G to remove the highlighted voxel
+*   Click Left Mouse to lock this voxel,
+      so that you can edit its attributes
+* Press Right Mouse to unlock a selected voxel
+
+Save/Load:
+* By default, saved voxels will be stored under
+    `~/taichi_voxel_editor_saveslots/`
+====================================================================
+'''
 
 def np_normalize(v):
     # https://stackoverflow.com/a/51512965/12003165
@@ -141,16 +160,14 @@ class HudManager:
         def __init__(self):
             self.edit_mode_changed = False
 
-    def update(self):
+    def update_edit_mode(self):
         res = HudManager.UpdateStatus()
         win = self._window
-        win.GUI.begin('Options', 0.02, 0.8, 0.15, 0.15)
-        label = 'To View Mode' if self.in_edit_mode else 'To Edit Mode'
+        win.GUI.begin('Mode', 0.02, 0.2, 0.15, 0.15)
+        label = 'To View' if self.in_edit_mode else 'To Edit'
         if win.GUI.button(label):
             self.in_edit_mode = not self.in_edit_mode
             res.edit_mode_changed = True
-        # self.voxel_color = win.GUI.color_edit_3(
-        #     'Voxel', self.voxel_color)
         versioning = win.GUI.checkbox("Enable Save/Load", self.is_saveload_enabled)
         win.GUI.end()
 
@@ -163,25 +180,26 @@ class HudManager:
                 if win.GUI.button(f.stem):
                     self.load_func(f)
             win.GUI.end()
+
+        win.GUI.begin('Tutorial', 0.02, 0.55, 0.4, 0.4)
+        win.GUI.text(HELP_MSG)
+        win.GUI.end()
         return res
+
+    def update_voxel_info(self, voxel_idx, renderer):
+        win = self._window
+        win.GUI.begin('Voxel', 0.02, 0.12, 0.15, 0.2)
+        if voxel_idx is not None:
+            vc = renderer.get_voxel_color(voxel_idx)
+            vc = win.GUI.color_edit_3('Color', vc)
+            renderer.set_voxel_color(voxel_idx, vc)
+        else:
+            win.GUI.text('No voxel selected')
+        win.GUI.end()
 
 
 def print_help():
-    msg = '''
-=========================== Voxel Editor ===========================
-Camera:
-* Press Ctrl + Left Mouse to rotate the camera
-* Press WASD to move the camera
-
-Edit Mode:
-* Press Left Mouse to add a voxel
-* Press Right Mouse to remove a highlighted voxel
-
-Save/Load:
-* By default, saved voxels will be stored under `~/taichi_voxel_editor_saveslots/`
-====================================================================
-    '''
-    print(msg)
+    print(HELP_MSG)
 
 
 class EditModeProcessor:
@@ -189,39 +207,66 @@ class EditModeProcessor:
     def __init__(self, window, renderer):
         self._window = window
         self._renderer = renderer
-        self._event_handled = False
         self._last_mouse_pos = None
-        self._mouse_moved = False
+        self._event_handled = False
+        self._cur_hovered_voxel_idx = None
+        self._voxel_locked = False
 
-    def process(self, mouse_exclusive_owner):
+    def update_mouse_hovered_voxel(self, mouse_excluded):
+        if mouse_excluded:
+            return
+
+        win = self._window
+        if win.is_pressed(ti.ui.RMB):
+            self._voxel_locked = False
+        if self._voxel_locked:
+            return
+
+        mouse_pos = np.array(self._window.get_cursor_pos())
+        mouse_pos_ss = [int(mouse_pos[i] * SCREEN_RES[i]) for i in range(2)]
+        ijk = self._renderer.raycast_voxel_grid(mouse_pos_ss, solid=True)
+        self._cur_hovered_voxel_idx = ijk
+        if ijk is not None and win.is_pressed(ti.ui.LMB):
+            self._voxel_locked = True
+
+    def edit_grid(self):
         win = self._window
         renderer = self._renderer
         mouse_pos = np.array(win.get_cursor_pos())
-        mov_delta = 0
-        if self._last_mouse_pos is not None:
-            d = mouse_pos - self._last_mouse_pos
-            mov_delta = np.dot(d, d)
-        self._mouse_moved = (mouse_pos != self._last_mouse_pos).any()
-        # TODO: Use a state machine to handle the logic
-        if not self._event_handled:
+        if self._last_mouse_pos is None:
             self._last_mouse_pos = mouse_pos
+        # TODO: Use a state machine to handle the logic
+        if self._voxel_locked:
+            return False
+
+        mouse_moved = (mouse_pos != self._last_mouse_pos).any()
+        self._last_mouse_pos = mouse_pos
+        if not self._event_handled:
             # screen space
             mouse_pos_ss = [
                 int(mouse_pos[i] * SCREEN_RES[i]) for i in range(2)
             ]
-            if not mouse_exclusive_owner:
-                ijk = renderer.raycast_voxel_grid(mouse_pos_ss, solid=True)
-                if win.is_pressed(ti.ui.LMB):
-                    ijk = renderer.raycast_voxel_grid(mouse_pos_ss, solid=False)
-                    if ijk is not None:
-                        renderer.add_voxel(ijk, color=(0.6, 0.7, 0.9))
-                        self._event_handled = True
-                elif win.is_pressed(ti.ui.RMB):
-                    if ijk is not None:
-                        renderer.delete_voxel(ijk)
-                        self._event_handled = True
-        elif win.get_events(ti.ui.RELEASE) or mov_delta > 2e-4:
+            ijk = self._cur_hovered_voxel_idx
+            if win.is_pressed('f'):
+                ijk = renderer.raycast_voxel_grid(mouse_pos_ss,
+                                                solid=False)
+                if ijk is not None:
+                    renderer.add_voxel(ijk, color=(0.6, 0.7, 0.9))
+                    self._event_handled = True
+            elif win.is_pressed('g'):
+                if ijk is not None:
+                    renderer.delete_voxel(ijk)
+                    self._event_handled = True
+        elif win.get_events(ti.ui.RELEASE) or mouse_moved:
             self._event_handled = False
+        should_rerender = mouse_moved or self._event_handled
+        return should_rerender
+
+    @property
+    def cur_locked_voxel_idx(self):
+        if not self._voxel_locked:
+            return None
+        return self._cur_hovered_voxel_idx
 
 
 def main():
@@ -246,12 +291,14 @@ def main():
     canvas = window.get_canvas()
     edit_proc = EditModeProcessor(window, renderer)
     while window.running:
-        hud_res = hud_mgr.update()
+        mouse_excluded = camera.mouse_exclusive_owner
+        hud_res = hud_mgr.update_edit_mode()
         should_reset_framebuffer = False
         if hud_mgr.in_edit_mode:
-            edit_proc.process(camera.mouse_exclusive_owner)
-            should_reset_framebuffer = edit_proc._event_handled or edit_proc._mouse_moved
-            # should_reset_framebuffer = True
+            edit_proc.update_mouse_hovered_voxel(mouse_excluded)
+            should_reset_framebuffer = edit_proc.edit_grid()
+            hud_mgr.update_voxel_info(
+                edit_proc.cur_locked_voxel_idx, renderer)
         elif hud_res.edit_mode_changed:
             renderer.clear_cast_voxel()
 
