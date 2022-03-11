@@ -1,4 +1,4 @@
-# voxel_editor
+# Taichi Voxel Editor
 
 ```sh
 python voxel_editor.py
@@ -10,3 +10,6 @@ editor with `sudo`:
 ```sh
 sudo python voxel_editor.py
 ```
+
+## Demo
+![](./demo.jpg)
