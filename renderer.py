@@ -494,8 +494,11 @@ class Renderer:
         with sudo permission.
         """
         to_save = dir / Path(f'taichi_voxel_{datetime.now().strftime("%Y%m%d_%H%M%S")}.npz')
-        np.savez(to_save, voxel_material=self.voxel_material.to_numpy(), voxel_color=self.voxel_color.to_numpy())
-        print(f"Saved to {to_save}")
+        try:
+            np.savez(to_save, voxel_material=self.voxel_material.to_numpy(), voxel_color=self.voxel_color.to_numpy())
+            print(f"Saved to {to_save}")
+        except PermissionError:
+            print(f"Failed to save {to_save}, try start the editor with `sudo` mode?")
 
     def slurp_local(self, to_slurp: Path):
         """Slurp from local storage for `to_slurp`."""
