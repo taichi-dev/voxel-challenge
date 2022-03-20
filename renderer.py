@@ -5,7 +5,7 @@ import numpy as np
 import taichi as ti
 
 from renderer_utils import (eps, inf, inside_taichi, out_dir,
-                            ray_aabb_intersection)
+                            ray_aabb_intersection, StorageBackend, defmulti)
 
 MAX_RAY_DEPTH = 4
 use_directional_light = True
@@ -13,6 +13,8 @@ use_directional_light = True
 DIS_LIMIT = 100
 
 EXPOSURE = 3
+SAVESLOT_FORMAT = "%Y%m%d_%H%M%S"
+MYNAME = "taichi-voxel-editor"
 
 
 @ti.data_oriented
@@ -482,7 +484,16 @@ class Renderer:
         res = self.voxel_color[ijk]
         return tuple([float(x) / 255.0 for x in res])
 
-    def spit_local(self, dir: Path):
+    @defmulti
+    def spit(self):
+        raise NotImplementedError("Default multimethod for spit function.")
+
+    @defmulti
+    def slurp(self):
+        raise NotImplementedError("Default multimethod for slurp function.")
+
+    @spit.defmethod(StorageBackend.LOCAL)
+    def spit_local(self, storage: StorageBackend, dir: Path):
         """
         Spit to `dir` on local storage.
 
@@ -490,14 +501,15 @@ class Renderer:
         hit permission issues, when it happens, run the editor
         with sudo permission.
         """
-        to_save = dir / Path(f'taichi_voxel_{datetime.now().strftime("%Y%m%d_%H%M%S")}.npz')
+        to_save = dir / Path(f'{MYNAME}_{datetime.now().strftime(SAVESLOT_FORMAT)}.npz')
         try:
             np.savez(to_save, voxel_material=self.voxel_material.to_numpy(), voxel_color=self.voxel_color.to_numpy())
             print(f"Saved to {to_save}")
         except PermissionError:
             print(f"Failed to save {to_save}, try start the editor with `sudo` mode?")
 
-    def slurp_local(self, to_slurp: Path):
+    @slurp.defmethod(StorageBackend.LOCAL)
+    def slurp_local(self, storage: StorageBackend, to_slurp: Path):
         """Slurp from local storage for `to_slurp`."""
         if to_slurp.exists():
            slurped = np.load(to_slurp, allow_pickle=False)

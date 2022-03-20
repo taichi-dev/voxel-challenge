@@ -1,4 +1,7 @@
 import math
+from enum import Enum, unique, auto
+from typing import Any, Callable
+from functools import wraps
 
 import taichi as ti
 
@@ -194,3 +197,36 @@ def inside_taichi(p_):
         if ret == -1:
             ret = 0
     return ret
+
+
+@unique
+class StorageBackend(Enum):
+    LOCAL = auto()
+
+
+def defmulti(fn):
+    """
+    Implement multimethod for value based dispatching in `Class`.
+
+    Ref: https://github.com/edgedb/edgedb/blob/master/edb/common    
+    """
+    multimethods = {}
+    
+    @wraps(fn)
+    def wrapper(_self, arg, *args, **kwargs) -> Callable:
+        try:
+            return multimethods[arg](_self, arg, *args, **kwargs)
+        except KeyError:
+            pass
+        return fn(_self, arg, *args, **kwargs)
+    
+    def defmethod(val: Any):
+        def wrap(fn) -> Callable:
+            if val in multimethods:
+                raise ValueError(f"{val} has been registrered with a handler.")
+            multimethods[val] = fn
+            return fn
+        return wrap
+    
+    wrapper.defmethod = defmethod
+    return wrapper
