@@ -1,5 +1,4 @@
 import math
-from curses import napms
 from functools import partial
 from pathlib import Path
 from typing import Callable
