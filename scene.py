@@ -190,55 +190,6 @@ class EditModeProcessor:
         self._cur_hovered_voxel_idx = None
         self._voxel_locked = False
 
-    def update_mouse_hovered_voxel(self, mouse_excluded):
-        if mouse_excluded:
-            return
-
-        win = self._window
-        if win.is_pressed(ti.ui.RMB):
-            self._voxel_locked = False
-        if self._voxel_locked:
-            return
-
-        mouse_pos = np.array(self._window.get_cursor_pos())
-        mouse_pos_ss = [int(mouse_pos[i] * SCREEN_RES[i]) for i in range(2)]
-        ijk = self._renderer.raycast_voxel_grid(mouse_pos_ss, solid=True)
-        self._cur_hovered_voxel_idx = ijk
-        if ijk is not None and win.is_pressed(ti.ui.LMB):
-            self._voxel_locked = True
-
-    def edit_grid(self):
-        win = self._window
-        renderer = self._renderer
-        mouse_pos = np.array(win.get_cursor_pos())
-        if self._last_mouse_pos is None:
-            self._last_mouse_pos = mouse_pos
-        # TODO: Use a state machine to handle the logic
-        if self._voxel_locked:
-            return False
-
-        mouse_moved = (mouse_pos != self._last_mouse_pos).any()
-        self._last_mouse_pos = mouse_pos
-        if not self._event_handled:
-            # screen space
-            mouse_pos_ss = [
-                int(mouse_pos[i] * SCREEN_RES[i]) for i in range(2)
-            ]
-            ijk = self._cur_hovered_voxel_idx
-            if win.is_pressed('f'):
-                ijk = renderer.raycast_voxel_grid(mouse_pos_ss, solid=False)
-                if ijk is not None:
-                    renderer.add_voxel(ijk, color=(0.6, 0.7, 0.9))
-                    self._event_handled = True
-            elif win.is_pressed('g'):
-                if ijk is not None:
-                    renderer.delete_voxel(ijk)
-                    self._event_handled = True
-        elif win.get_events(ti.ui.RELEASE) or mouse_moved:
-            self._event_handled = False
-        should_rerender = mouse_moved or self._event_handled
-        return should_rerender
-
     @property
     def cur_locked_voxel_idx(self):
         if not self._voxel_locked:
@@ -272,8 +223,11 @@ class Scene:
         self.renderer.set_camera_pos(*self.camera.position)
         self.renderer.floor_height[None] = -5e-3
 
-    def add_voxel(self, idx, mat=1, color=(1, 1, 1)):
+    def set_voxel(self, idx, mat=1, color=(1, 1, 1)):
         self.renderer.add_voxel(idx, mat, color)
+
+    def erase_voxel(self, idx):
+        self.renderer.erase_voxel(idx)
 
     def finish(self):
         self.renderer.recompute_bbox()
@@ -284,13 +238,6 @@ class Scene:
             mouse_excluded = self.camera.mouse_exclusive_owner
             hud_res = self.hud_mgr.update_edit_mode()
             should_reset_framebuffer = False
-            if self.hud_mgr.in_edit_mode:
-                edit_proc.update_mouse_hovered_voxel(mouse_excluded)
-                should_reset_framebuffer = edit_proc.edit_grid()
-                self.hud_mgr.update_voxel_info(edit_proc.cur_locked_voxel_idx,
-                                               renderer)
-            elif hud_res.edit_mode_changed:
-                self.renderer.clear_cast_voxel()
 
             if self.camera.update_camera():
                 self.renderer.set_camera_pos(*self.camera.position)

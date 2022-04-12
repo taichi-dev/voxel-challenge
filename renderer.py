@@ -457,7 +457,7 @@ class Renderer:
         self.voxel_material[ijk] = mat
         self.voxel_color[ijk] = [int(color[i] * 255) for i in range(3)]
 
-    def delete_voxel(self, ijk):
+    def erase_voxel(self, ijk):
         self.voxel_material[tuple(ijk)] = 0
 
     def set_voxel_color(self, ijk, color):
