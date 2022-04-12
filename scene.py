@@ -87,7 +87,7 @@ class Camera:
                 break
         if dir is None:
             return False
-        dir = np.array(dir) * 0.05
+        dir = np.array(dir) * 0.02
         self._lookat_pos += dir
         self._camera_pos += dir
         return True

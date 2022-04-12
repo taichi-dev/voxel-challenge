@@ -1,19 +1,23 @@
 from scene import Scene
-import math
 
 scene = Scene()
 
-scene.set_floor(0, (1.0, 1.0, 1.0))
+scene.set_floor(0, (0.5, 0.5, 1))
 
-radius = 30
-n = 1000
-for i in range(n):
-    t = i / n * 10
+for i in range(31):
+    for j in range(31):
+        is_light = int(j % 10 != 0)
+        scene.set_voxel(idx=(j, i, -30), mat=is_light + 1, color=(1, 1, 1))
 
-    for k in range(3):
-        r = radius * k // 2
-        scene.set_voxel(idx=(math.cos(t) * r, t * 2, math.sin(t) * r),
-                        mat=2,
-                        color=(0.9, 0.5, 0.3))
+        color = max(i, j)
+        if color % 2 == 0:
+            scene.set_voxel(idx=(0, i, j - 30), color=((color % 3 // 2) * 0.5 + 0.5, ((color + 1) % 3 // 2) * 0.5 + 0.5, ((color + 2)  % 3 // 2) * 0.5 + 0.5))
+
+for i in range(31):
+    for j in range(31):
+        c = (i + j) % 2
+        index = (i, 0, j - 30)
+        scene.set_voxel(idx=index,
+                        color=(c * 0.3 + 0.3, (1 - c) * 0.8 + 0.2, 1))
 
 scene.finish()
