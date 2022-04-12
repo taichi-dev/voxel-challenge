@@ -13,14 +13,14 @@ to install the dependendies of the voxel-editor.
 ## Quickstart
 
 ```sh
-python3 voxel_editor.py
+python3 scene.py
 ```
 
 if you want to save/load voxels, you might have to invoke the
 editor with `sudo`:
 
 ```sh
-sudo python3 voxel_editor.py
+sudo python3 scene.py
 ```
 
 ## Demo
