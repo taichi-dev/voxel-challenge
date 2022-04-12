@@ -2,6 +2,7 @@ from scene import Scene
 
 scene = Scene()
 
-scene.add_voxel()
+# for i in range(10):
+#    scene.add_voxel()
 
 scene.finish()

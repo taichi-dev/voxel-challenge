@@ -238,65 +238,67 @@ class EditModeProcessor:
         return self._cur_hovered_voxel_idx
 
 
-def main():
-    ti.init(arch=ti.vulkan)
-    print_help()
-    window = ti.ui.Window("Voxel Editor", SCREEN_RES, vsync=True)
-    camera = Camera(window, up=UP_DIR)
-    hud_mgr = HudManager(window)
-    renderer = Renderer(dx=VOXEL_DX,
-                        image_res=SCREEN_RES,
-                        up=UP_DIR,
-                        taichi_logo=False)
-
-    # hard-code to local storage for now
-    storage = StorageBackend.LOCAL
-    print(f'[{MYNAME}] You are currently using {storage.name} as storage backend.')
-    
-    # setup save/load funcs
-    hud_mgr.save_func = partial(renderer.spit, storage, hud_mgr.saveslots)
-    hud_mgr.load_func = partial(renderer.slurp, storage)
-
-    renderer.set_camera_pos(*camera.position)
-    renderer.floor_height[None] = -5e-3
+def run():
     renderer.initialize_grid()
 
-    canvas = window.get_canvas()
-    edit_proc = EditModeProcessor(window, renderer)
-    spp = 1
-    while window.running:
-        mouse_excluded = camera.mouse_exclusive_owner
-        hud_res = hud_mgr.update_edit_mode()
-        should_reset_framebuffer = False
-        if hud_mgr.in_edit_mode:
-            edit_proc.update_mouse_hovered_voxel(mouse_excluded)
-            should_reset_framebuffer = edit_proc.edit_grid()
-            hud_mgr.update_voxel_info(
-                edit_proc.cur_locked_voxel_idx, renderer)
-        elif hud_res.edit_mode_changed:
-            renderer.clear_cast_voxel()
 
-        if camera.update_camera():
-            renderer.set_camera_pos(*camera.position)
-            look_at = camera.look_at
-            renderer.set_look_at(*look_at)
-            should_reset_framebuffer = True
+class Scene:
+    def __init__(self):
+        ti.init(arch=ti.vulkan)
+        print_help()
+        self.window = ti.ui.Window("Voxel Editor", SCREEN_RES, vsync=True)
+        self.camera = Camera(self.window, up=UP_DIR)
+        self.hud_mgr = HudManager(self.window)
+        self.renderer = Renderer(dx=VOXEL_DX,
+                            image_res=SCREEN_RES,
+                            up=UP_DIR,
+                            taichi_logo=False)
 
-        if should_reset_framebuffer:
-            renderer.reset_framebuffer()
+        # hard-code to local storage for now
+        storage = StorageBackend.LOCAL
+        print(f'[{MYNAME}] You are currently using {storage.name} as storage backend.')
 
-        t = time.time()
-        for _ in range(spp):
-            renderer.accumulate()
-        img = renderer.fetch_image()
-        canvas.set_image(img)
-        elapsed_time = time.time() - t
-        if elapsed_time * TARGET_FPS > 1:
-            spp = max(spp - 1, 1)
-        else:
-            spp += 1
-        window.show()
+        # setup save/load funcs
+        self.hud_mgr.save_func = partial(self.renderer.spit, storage, self.hud_mgr.saveslots)
+        self.hud_mgr.load_func = partial(self.renderer.slurp, storage)
 
+        self.renderer.set_camera_pos(*self.camera.position)
+        self.renderer.floor_height[None] = -5e-3
+        self.renderer.initialize_grid()
 
-if __name__ == '__main__':
-    main()
+    def finish(self):
+        canvas = self.window.get_canvas()
+        edit_proc = EditModeProcessor(self.window, self.renderer)
+        spp = 1
+        while self.window.running:
+            mouse_excluded = self.camera.mouse_exclusive_owner
+            hud_res = self.hud_mgr.update_edit_mode()
+            should_reset_framebuffer = False
+            if self.hud_mgr.in_edit_mode:
+                edit_proc.update_mouse_hovered_voxel(mouse_excluded)
+                should_reset_framebuffer = edit_proc.edit_grid()
+                self.hud_mgr.update_voxel_info(
+                    edit_proc.cur_locked_voxel_idx, renderer)
+            elif hud_res.edit_mode_changed:
+                self.renderer.clear_cast_voxel()
+
+            if self.camera.update_camera():
+                self.renderer.set_camera_pos(*self.camera.position)
+                look_at = self.camera.look_at
+                self.renderer.set_look_at(*look_at)
+                should_reset_framebuffer = True
+
+            if should_reset_framebuffer:
+                self.renderer.reset_framebuffer()
+
+            t = time.time()
+            for _ in range(spp):
+                self.renderer.accumulate()
+            img = self.renderer.fetch_image()
+            canvas.set_image(img)
+            elapsed_time = time.time() - t
+            if elapsed_time * TARGET_FPS > 1:
+                spp = max(spp - 1, 1)
+            else:
+                spp += 1
+            self.window.show()
