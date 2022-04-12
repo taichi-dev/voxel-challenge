@@ -10,7 +10,7 @@ import taichi as ti
 from renderer import Renderer, StorageBackend, SAVESLOT_FORMAT, MYNAME
 from np_utils import np_normalize, np_rotate_matrix
 
-VOXEL_DX = 1 / 32
+VOXEL_DX = 1 / 64
 SCREEN_RES = (1280, 720)
 TARGET_FPS = 30
 UP_DIR = (0, 1, 0)
@@ -19,19 +19,6 @@ HELP_MSG = '''
 Camera:
 * Press Ctrl + Left Mouse to rotate the camera
 * Press W/A/S/D/Q/E to move the camera
-
-Edit Mode:
-* Move the mouse to highlight a voxel
-* When a voxel is highlighted:
-*   Press F to add a voxel around it
-*   Press G to remove the highlighted voxel
-*   Click Left Mouse to lock this voxel,
-      so that you can edit its attributes
-* Press Right Mouse to unlock a selected voxel
-
-Save/Load:
-* By default, saved voxels will be stored under
-    `~/taichi-voxel-editor_saveslots/`
 ====================================================================
 '''
 
@@ -308,7 +295,6 @@ def main():
             spp = max(spp - 1, 1)
         else:
             spp += 1
-        print(spp, elapsed_time * TARGET_FPS)
         window.show()
 
 

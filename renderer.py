@@ -404,12 +404,18 @@ class Renderer:
 
         return counter
 
-    def initialize_grid(self):
-        for i in range(3):
-            self.bbox[0][i] = -1
-            self.bbox[1][i] = 1
-            print(f'Bounding box dim {i}: {self.bbox[0][i]} {self.bbox[1][i]}')
+    @ti.kernel
+    def recompute_bbox(self):
+        for d in ti.static(range(3)):
+            self.bbox[0][d] = 1e9
+            self.bbox[1][d] = -1e9
+        for I in ti.grouped(self.voxel_material):
+            if self.voxel_material[I] != 0:
+                for d in ti.static(range(3)):
+                    ti.atomic_min(self.bbox[0][d], I[d] * self.voxel_dx - 1e-5)
+                    ti.atomic_max(self.bbox[1][d], (I[d] + 1) * self.voxel_dx + 1e-5)
 
+    def initialize_grid(self):
         for i in range(31):
             for j in range(31):
                 is_light = int(j % 10 != 0)
@@ -429,6 +435,8 @@ class Renderer:
             index = (i, 1, 6)
             self.voxel_material[index] = 2
             self.voxel_color[index] = [255, 255, 255]
+
+        self.recompute_bbox()
 
     def reset_framebuffer(self):
         self.current_spp = 0
