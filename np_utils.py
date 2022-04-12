@@ -1,6 +1,7 @@
 import numpy as np
 import math
 
+
 def np_normalize(v):
     # https://stackoverflow.com/a/51512965/12003165
     return v / np.sqrt(np.sum(v**2))

@@ -211,7 +211,7 @@ def defmulti(fn):
     Ref: https://github.com/edgedb/edgedb/blob/master/edb/common    
     """
     multimethods = {}
-    
+
     @wraps(fn)
     def wrapper(_self, arg, *args, **kwargs) -> Callable:
         try:
@@ -219,14 +219,15 @@ def defmulti(fn):
         except KeyError:
             pass
         return fn(_self, arg, *args, **kwargs)
-    
+
     def defmethod(val: Any):
         def wrap(fn) -> Callable:
             if val in multimethods:
                 raise ValueError(f"{val} has been registrered with a handler.")
             multimethods[val] = fn
             return fn
+
         return wrap
-    
+
     wrapper.defmethod = defmethod
     return wrapper

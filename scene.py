@@ -22,8 +22,8 @@ Camera:
 ====================================================================
 '''
 
-class Camera:
 
+class Camera:
     def __init__(self, window, up):
         self._window = window
         self._camera_pos = np.array((1.0, 1.5, 2.0))
@@ -111,18 +111,23 @@ class Camera:
 
 
 class HudManager:
-
-    def __init__(self, window, save_func: Callable = None, load_func: Callable = None, saveslots: Path = None):
+    def __init__(self,
+                 window,
+                 save_func: Callable = None,
+                 load_func: Callable = None,
+                 saveslots: Path = None):
         self._window = window
         self.in_edit_mode = False
         self.is_saveload_enabled = False
-        self.save_func = save_func or (lambda: print("Save func needs to be defined!"))
-        self.load_func = load_func or (lambda: print("Load func needs to be defined!"))
-        self.saveslots = saveslots or Path.home() / Path(f"./{MYNAME}_saveslots")
+        self.save_func = save_func or (
+            lambda: print("Save func needs to be defined!"))
+        self.load_func = load_func or (
+            lambda: print("Load func needs to be defined!"))
+        self.saveslots = saveslots or Path.home() / Path(
+            f"./{MYNAME}_saveslots")
         self.saveslots.mkdir(parents=True, exist_ok=True)
 
     class UpdateStatus:
-
         def __init__(self):
             self.edit_mode_changed = False
 
@@ -134,7 +139,8 @@ class HudManager:
         if win.GUI.button(label):
             self.in_edit_mode = not self.in_edit_mode
             res.edit_mode_changed = True
-        versioning = win.GUI.checkbox("Enable Save/Load", self.is_saveload_enabled)
+        versioning = win.GUI.checkbox("Enable Save/Load",
+                                      self.is_saveload_enabled)
         win.GUI.end()
 
         if versioning:
@@ -145,7 +151,11 @@ class HudManager:
             # TODO: move the display logic to a SaveLoadProcessor
             # and define multimethods for multiple storage backends
             loadable_slots = self.saveslots.glob(f"{MYNAME}_*.npz")
-            for f in sorted(loadable_slots, key=lambda f: datetime.strptime(f.stem.split(f"{MYNAME}_")[-1], SAVESLOT_FORMAT), reverse=True):
+            for f in sorted(
+                    loadable_slots,
+                    key=lambda f: datetime.strptime(
+                        f.stem.split(f"{MYNAME}_")[-1], SAVESLOT_FORMAT),
+                    reverse=True):
                 if win.GUI.button(f.stem):
                     self.load_func(f)
             win.GUI.end()
@@ -172,7 +182,6 @@ def print_help():
 
 
 class EditModeProcessor:
-
     def __init__(self, window, renderer):
         self._window = window
         self._renderer = renderer
@@ -217,8 +226,7 @@ class EditModeProcessor:
             ]
             ijk = self._cur_hovered_voxel_idx
             if win.is_pressed('f'):
-                ijk = renderer.raycast_voxel_grid(mouse_pos_ss,
-                                                solid=False)
+                ijk = renderer.raycast_voxel_grid(mouse_pos_ss, solid=False)
                 if ijk is not None:
                     renderer.add_voxel(ijk, color=(0.6, 0.7, 0.9))
                     self._event_handled = True
@@ -250,16 +258,19 @@ class Scene:
         self.camera = Camera(self.window, up=UP_DIR)
         self.hud_mgr = HudManager(self.window)
         self.renderer = Renderer(dx=VOXEL_DX,
-                            image_res=SCREEN_RES,
-                            up=UP_DIR,
-                            taichi_logo=False)
+                                 image_res=SCREEN_RES,
+                                 up=UP_DIR,
+                                 taichi_logo=False)
 
         # hard-code to local storage for now
         storage = StorageBackend.LOCAL
-        print(f'[{MYNAME}] You are currently using {storage.name} as storage backend.')
+        print(
+            f'[{MYNAME}] You are currently using {storage.name} as storage backend.'
+        )
 
         # setup save/load funcs
-        self.hud_mgr.save_func = partial(self.renderer.spit, storage, self.hud_mgr.saveslots)
+        self.hud_mgr.save_func = partial(self.renderer.spit, storage,
+                                         self.hud_mgr.saveslots)
         self.hud_mgr.load_func = partial(self.renderer.slurp, storage)
 
         self.renderer.set_camera_pos(*self.camera.position)
@@ -277,8 +288,8 @@ class Scene:
             if self.hud_mgr.in_edit_mode:
                 edit_proc.update_mouse_hovered_voxel(mouse_excluded)
                 should_reset_framebuffer = edit_proc.edit_grid()
-                self.hud_mgr.update_voxel_info(
-                    edit_proc.cur_locked_voxel_idx, renderer)
+                self.hud_mgr.update_voxel_info(edit_proc.cur_locked_voxel_idx,
+                                               renderer)
             elif hud_res.edit_mode_changed:
                 self.renderer.clear_cast_voxel()
 

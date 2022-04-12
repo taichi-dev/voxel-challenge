@@ -19,7 +19,6 @@ MYNAME = "taichi-voxel-editor"
 
 @ti.data_oriented
 class Renderer:
-
     def __init__(self, dx, image_res, up, taichi_logo=True):
         self.image_res = image_res
         self.aspect_ratio = image_res[0] / image_res[1]
@@ -413,7 +412,8 @@ class Renderer:
             if self.voxel_material[I] != 0:
                 for d in ti.static(range(3)):
                     ti.atomic_min(self.bbox[0][d], I[d] * self.voxel_dx - 1e-5)
-                    ti.atomic_max(self.bbox[1][d], (I[d] + 1) * self.voxel_dx + 1e-5)
+                    ti.atomic_max(self.bbox[1][d],
+                                  (I[d] + 1) * self.voxel_dx + 1e-5)
 
     def initialize_grid(self):
         for i in range(31):
@@ -509,23 +509,29 @@ class Renderer:
         hit permission issues, when it happens, run the editor
         with sudo permission.
         """
-        to_save = dir / Path(f'{MYNAME}_{datetime.now().strftime(SAVESLOT_FORMAT)}.npz')
+        to_save = dir / Path(
+            f'{MYNAME}_{datetime.now().strftime(SAVESLOT_FORMAT)}.npz')
         try:
-            np.savez(to_save, voxel_material=self.voxel_material.to_numpy(), voxel_color=self.voxel_color.to_numpy())
+            np.savez(to_save,
+                     voxel_material=self.voxel_material.to_numpy(),
+                     voxel_color=self.voxel_color.to_numpy())
             print(f"Saved to {to_save}")
         except PermissionError:
-            print(f"Failed to save {to_save}, try start the editor with `sudo` mode?")
+            print(
+                f"Failed to save {to_save}, try start the editor with `sudo` mode?"
+            )
 
     @slurp.defmethod(StorageBackend.LOCAL)
     def slurp_local(self, storage: StorageBackend, to_slurp: Path):
         """Slurp from local storage for `to_slurp`."""
         if to_slurp.exists():
-           slurped = np.load(to_slurp, allow_pickle=False)
-           _voxel_material, _voxel_color = slurped["voxel_material"], slurped["voxel_color"]
-           self.voxel_material.from_numpy(_voxel_material)
-           self.voxel_color.from_numpy(_voxel_color)
-        #    self.clear_cast_voxel()
-           self.reset_framebuffer()
-           print(f"Loaded from {to_slurp}")
+            slurped = np.load(to_slurp, allow_pickle=False)
+            _voxel_material, _voxel_color = slurped["voxel_material"], slurped[
+                "voxel_color"]
+            self.voxel_material.from_numpy(_voxel_material)
+            self.voxel_color.from_numpy(_voxel_color)
+            #    self.clear_cast_voxel()
+            self.reset_framebuffer()
+            print(f"Loaded from {to_slurp}")
         else:
             print(f"Failed to load from {to_slurp}")
