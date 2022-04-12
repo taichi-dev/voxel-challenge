@@ -229,6 +229,10 @@ class Scene:
     def erase_voxel(self, idx):
         self.renderer.erase_voxel(idx)
 
+    def set_floor(self, height, color):
+        self.renderer.floor_height[None] = height
+        self.renderer.floor_color[None] = color
+
     def finish(self):
         self.renderer.recompute_bbox()
         canvas = self.window.get_canvas()

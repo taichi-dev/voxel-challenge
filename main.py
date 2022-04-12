@@ -2,6 +2,8 @@ from scene import Scene
 
 scene = Scene()
 
+scene.set_floor(0, (0.5, 1.0, 0.2))
+
 for i in range(10):
     scene.set_voxel(idx=(i, i, i), mat=2, color=(0.9, 0.5, 0.3))
 

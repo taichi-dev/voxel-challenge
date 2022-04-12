@@ -48,8 +48,8 @@ class Renderer:
         self.up = ti.Vector.field(3, dtype=ti.f32, shape=())
 
         self.floor_height = ti.field(dtype=ti.f32, shape=())
+        self.floor_color = ti.Vector.field(3, dtype=ti.f32, shape=())
 
-        self.supporter = 2
         # What's the difference between `voxel_inv_dx` and `voxel_grid_res`...?
         self.voxel_dx = dx
         self.voxel_inv_dx = 1 / dx
@@ -126,22 +126,7 @@ class Renderer:
 
     @ti.func
     def sdf(self, o):
-        dist = 0.0
-        if ti.static(self.supporter == 0):
-            o -= ti.Vector([0.5, 0.002, 0.5])
-            p = o
-            h = 0.02
-            ra = 0.29
-            rb = 0.005
-            d = (ti.Vector([p[0], p[2]]).norm() - 2.0 * ra + rb, abs(p[1]) - h)
-            dist = min(max(d[0], d[1]), 0.0) + ti.Vector(
-                [max(d[0], 0.0), max(d[1], 0)]).norm() - rb
-        elif ti.static(self.supporter == 1):
-            o -= ti.Vector([0.5, 0.002, 0.5])
-            dist = (o.abs() - ti.Vector([0.5, 0.02, 0.5])).max()
-        else:
-            dist = o[1] - self.floor_height[None]
-
+        dist = o[1] - self.floor_height[None]
         return dist
 
     @ti.func
@@ -170,14 +155,7 @@ class Renderer:
 
     @ti.func
     def sdf_color(self, p):
-        scale = 0.0
-        if ti.static(self.taichi_logo):
-            scale = 0.4
-            if inside_taichi(ti.Vector([p[0], p[2]])):
-                scale = 1
-        else:
-            scale = 1.0
-        return ti.Vector([0.3, 0.5, 0.7]) * scale
+        return self.floor_color[None]
 
     @ti.func
     def dda_voxel(self, eye_pos, d):
