@@ -2,6 +2,7 @@ from datetime import datetime
 from functools import partial
 from pathlib import Path
 from typing import Callable
+import time
 
 import numpy as np
 import taichi as ti
@@ -11,7 +12,7 @@ from np_utils import np_normalize, np_rotate_matrix
 
 VOXEL_DX = 1 / 32
 SCREEN_RES = (1280, 720)
-SPP = 10
+TARGET_FPS = 30
 UP_DIR = (0, 1, 0)
 HELP_MSG = '''
 =========================== Voxel Editor ===========================
@@ -88,8 +89,8 @@ class Camera:
             ('a', leftdir),
             ('s', -tgtdir),
             ('d', -leftdir),
-            ('e', [0, 1, 0]),
-            ('q', [0, -1, 0]),
+            ('e', [0, -1, 0]),
+            ('q', [0, 1, 0]),
         ]
         dir = None
         for key, d in lut:
@@ -275,6 +276,7 @@ def main():
 
     canvas = window.get_canvas()
     edit_proc = EditModeProcessor(window, renderer)
+    spp = 1
     while window.running:
         mouse_excluded = camera.mouse_exclusive_owner
         hud_res = hud_mgr.update_edit_mode()
@@ -296,10 +298,17 @@ def main():
         if should_reset_framebuffer:
             renderer.reset_framebuffer()
 
-        for _ in range(SPP):
+        t = time.time()
+        for _ in range(spp):
             renderer.accumulate()
         img = renderer.fetch_image()
         canvas.set_image(img)
+        elapsed_time = time.time() - t
+        if elapsed_time * TARGET_FPS > 1:
+            spp = max(spp - 1, 1)
+        else:
+            spp += 1
+        print(spp, elapsed_time * TARGET_FPS)
         window.show()
 
 
