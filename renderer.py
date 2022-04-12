@@ -12,20 +12,18 @@ use_directional_light = True
 
 DIS_LIMIT = 100
 
-EXPOSURE = 3
 SAVESLOT_FORMAT = "%Y%m%d_%H%M%S"
 MYNAME = "taichi-voxel-editor"
 
 
 @ti.data_oriented
 class Renderer:
-    def __init__(self, dx, image_res, up, taichi_logo=True):
+    def __init__(self, dx, image_res, up, voxel_edges, exposure=3):
         self.image_res = image_res
         self.aspect_ratio = image_res[0] / image_res[1]
         self.vignette_strength = 0.9
         self.vignette_radius = 0.0
         self.vignette_center = [0.5, 0.5]
-        self.taichi_logo = taichi_logo
         self.current_spp = 0
 
         self.color_buffer = ti.Vector.field(3, dtype=ti.f32)
@@ -41,7 +39,8 @@ class Renderer:
         self.cast_voxel_hit = ti.field(ti.i32, shape=())
         self.cast_voxel_index = ti.Vector.field(3, ti.i32, shape=())
 
-        self.voxel_edges = 0.06
+        self.voxel_edges = voxel_edges
+        self.exposure = exposure
 
         self.camera_pos = ti.Vector.field(3, dtype=ti.f32, shape=())
         self.look_at = ti.Vector.field(3, dtype=ti.f32, shape=())
@@ -369,7 +368,8 @@ class Renderer:
 
             for c in ti.static(range(3)):
                 self._rendered_image[i, j][c] = ti.sqrt(
-                    self.color_buffer[i, j][c] * darken * EXPOSURE / samples)
+                    self.color_buffer[i, j][c] * darken * self.exposure /
+                    samples)
 
     @ti.kernel
     def total_non_empty_voxels(self) -> ti.i32:

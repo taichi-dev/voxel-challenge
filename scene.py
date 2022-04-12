@@ -16,11 +16,11 @@ SCREEN_RES = (1280, 720)
 TARGET_FPS = 30
 UP_DIR = (0, 1, 0)
 HELP_MSG = '''
-=========================== Voxel Editor ===========================
+====================================================
 Camera:
-* Press Ctrl + Left Mouse to rotate the camera
-* Press W/A/S/D/Q/E to move the camera
-====================================================================
+* Drag with your left mouse button to rotate
+* Press W/A/S/D/Q/E to move
+====================================================
 '''
 
 
@@ -34,7 +34,7 @@ class Camera:
 
     @property
     def mouse_exclusive_owner(self):
-        return self._window.is_pressed(ti.ui.CTRL)
+        return True
 
     def update_camera(self):
         res = self._update_by_mouse()
@@ -135,35 +135,6 @@ class HudManager:
     def update_edit_mode(self):
         res = HudManager.UpdateStatus()
         win = self._window
-        win.GUI.begin('Mode', 0.02, 0.2, 0.15, 0.15)
-        label = 'To View' if self.in_edit_mode else 'To Edit'
-        if win.GUI.button(label):
-            self.in_edit_mode = not self.in_edit_mode
-            res.edit_mode_changed = True
-        versioning = win.GUI.checkbox("Enable Save/Load",
-                                      self.is_saveload_enabled)
-        win.GUI.end()
-
-        if versioning:
-            win.GUI.begin("Save/Load", 0.02, 0.6, 0.25, 0.15)
-            self.is_saveload_enabled = True
-            if win.GUI.button("Save"):
-                self.save_func()
-            # TODO: move the display logic to a SaveLoadProcessor
-            # and define multimethods for multiple storage backends
-            loadable_slots = self.saveslots.glob(f"{MYNAME}_*.npz")
-            for f in sorted(
-                    loadable_slots,
-                    key=lambda f: datetime.strptime(
-                        f.stem.split(f"{MYNAME}_")[-1], SAVESLOT_FORMAT),
-                    reverse=True):
-                if win.GUI.button(f.stem):
-                    self.load_func(f)
-            win.GUI.end()
-
-        win.GUI.begin('Tutorial', 0.02, 0.55, 0.4, 0.4)
-        win.GUI.text(HELP_MSG)
-        win.GUI.end()
         return res
 
     def update_voxel_info(self, voxel_idx, renderer):
@@ -199,7 +170,7 @@ class EditModeProcessor:
 
 
 class Scene:
-    def __init__(self):
+    def __init__(self, voxel_edges=0.06, exposure=3):
         ti.init(arch=ti.vulkan)
         print_help()
         self.window = ti.ui.Window("Voxel Editor", SCREEN_RES, vsync=True)
@@ -208,7 +179,8 @@ class Scene:
         self.renderer = Renderer(dx=VOXEL_DX,
                                  image_res=SCREEN_RES,
                                  up=UP_DIR,
-                                 taichi_logo=False)
+                                 voxel_edges=voxel_edges,
+                                 exposure=exposure)
 
         # hard-code to local storage for now
         storage = StorageBackend.LOCAL
