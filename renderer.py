@@ -430,12 +430,23 @@ class Renderer:
         self.cast_voxel_hit[None] = 0
         self.cast_voxel_index[None] = ti.Vector([0, 0, 0])
 
+    def check_voxel_in_range(self, idx):
+        min_coord = -self.voxel_grid_res // 2
+        max_coord = self.voxel_grid_res // 2
+        for i in range(3):
+            if not (min_coord <= idx[0] < max_coord):
+                raise ValueError(
+                    f"Voxel ({idx[0], idx[1], idx[2]}) out of range. Each coordinate must belong to [{min_coord}, {max_coord})"
+                )
+
     def add_voxel(self, ijk, mat=1, color=(0.5, 0.5, 0.5)):
+        self.check_voxel_in_range(ijk)
         ijk = tuple(ijk)
         self.voxel_material[ijk] = mat
         self.voxel_color[ijk] = [int(color[i] * 255) for i in range(3)]
 
     def erase_voxel(self, ijk):
+        self.check_voxel_in_range(ijk)
         self.voxel_material[tuple(ijk)] = 0
 
     def set_voxel_color(self, ijk, color):

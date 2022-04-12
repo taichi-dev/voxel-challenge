@@ -3,6 +3,7 @@ from functools import partial
 from pathlib import Path
 from typing import Callable
 import time
+import math
 
 import numpy as np
 import taichi as ti
@@ -224,10 +225,10 @@ class Scene:
         self.renderer.floor_height[None] = -5e-3
 
     def set_voxel(self, idx, mat=1, color=(1, 1, 1)):
-        self.renderer.add_voxel(idx, mat, color)
+        self.renderer.add_voxel(tuple(map(round, idx)), mat, color)
 
     def erase_voxel(self, idx):
-        self.renderer.erase_voxel(idx)
+        self.renderer.erase_voxel(tuple(map(round, idx)))
 
     def set_floor(self, height, color):
         self.renderer.floor_height[None] = height
