@@ -415,29 +415,6 @@ class Renderer:
                     ti.atomic_max(self.bbox[1][d],
                                   (I[d] + 1) * self.voxel_dx + 1e-5)
 
-    def initialize_grid(self):
-        for i in range(31):
-            for j in range(31):
-                is_light = int(j % 10 != 0)
-                self.voxel_material[j, i, -30] = is_light + 1
-                self.voxel_color[j, i, -30] = [255, 255, 255]
-
-        for i in range(0, 31):
-            for j in range(0, 31):
-                index = (i, 0, j - 30)
-                self.voxel_material[index] = 1
-                c = (i + j) % 2
-                self.voxel_color[index] = [
-                    c * 55 + 200, (1 - c) * 55 + 200, 255
-                ]
-
-        for i in range(31):
-            index = (i, 1, 6)
-            self.voxel_material[index] = 2
-            self.voxel_color[index] = [255, 255, 255]
-
-        self.recompute_bbox()
-
     def reset_framebuffer(self):
         self.current_spp = 0
         self.color_buffer.fill(0)

@@ -246,10 +246,6 @@ class EditModeProcessor:
         return self._cur_hovered_voxel_idx
 
 
-def run():
-    renderer.initialize_grid()
-
-
 class Scene:
     def __init__(self):
         ti.init(arch=ti.vulkan)
@@ -275,9 +271,12 @@ class Scene:
 
         self.renderer.set_camera_pos(*self.camera.position)
         self.renderer.floor_height[None] = -5e-3
-        self.renderer.initialize_grid()
+
+    def add_voxel(self, idx, mat=1, color=(1, 1, 1)):
+        self.renderer.add_voxel(idx, mat, color)
 
     def finish(self):
+        self.renderer.recompute_bbox()
         canvas = self.window.get_canvas()
         edit_proc = EditModeProcessor(self.window, self.renderer)
         spp = 1
