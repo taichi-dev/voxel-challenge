@@ -59,7 +59,8 @@ class Renderer:
         self.set_up(*up)
         self.set_fov(0.23)
 
-        self.floor_height[None] = -1e10  # No floor
+        self.floor_height[None] = 0
+        self.floor_color[None] = (1, 1, 1)
 
     def set_directional_light(self, direction, light_direction_noise,
                               light_color):
@@ -120,7 +121,7 @@ class Renderer:
     @ti.func
     def ray_march(self, p, d):
         dist = inf
-        if d[1] < -eps and self.floor_height[None] > -1e9:
+        if d[1] < -eps:
             dist = (self.floor_height[None] - p[1]) / d[1]
         return dist
 
@@ -279,7 +280,7 @@ class Renderer:
                 closest, normal, c, hit_light = self.next_hit(pos, d, t)
                 hit_pos = pos + closest * d
                 depth += 1
-                if not hit_light and normal.norm() != 0:
+                if not hit_light and normal.norm() != 0 and closest < 1e8:
                     d = out_dir(normal)
                     pos = hit_pos + 1e-4 * d
                     throughput *= c
@@ -298,13 +299,11 @@ class Renderer:
                             dist, _, _, hit_light_ = self.next_hit(
                                 pos, light_dir, t)
                             if dist > DIS_LIMIT:
-                                # hit background
+                                # far enough to hit directional light
                                 contrib += throughput * \
                                     self.light_color[None] * dot
-                else:  # hit sky or light
-                    if depth == 1 and not hit_light:
-                        hit_background = 1
-                    break
+                else:  # hit background or light voxel, terminate tracing
+                    depth = MAX_RAY_DEPTH
 
                 # Russian roulette
                 max_c = throughput.max()
@@ -313,13 +312,10 @@ class Renderer:
                     break
                 else:
                     throughput /= max_c
-
             # Tracing end
 
             if hit_light:
                 contrib += throughput * c
-            else:
-                throughput *= 0
 
             if hit_background:
                 contrib = self.background_color[None]
