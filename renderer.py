@@ -57,9 +57,13 @@ class Renderer:
         self.set_up(*up)
         self.set_fov(0.23)
 
-    def set_directional_light(self, direction, light_direction_noise, light_color):
-        direction_norm = (direction[0] ** 2 + direction[1] ** 2 + direction[2] ** 2) ** 0.5
-        self.light_direction[None] = (direction[0] / direction_norm, direction[1] / direction_norm, direction[2] / direction_norm)
+    def set_directional_light(self, direction, light_direction_noise,
+                              light_color):
+        direction_norm = (direction[0]**2 + direction[1]**2 +
+                          direction[2]**2)**0.5
+        self.light_direction[None] = (direction[0] / direction_norm,
+                                      direction[1] / direction_norm,
+                                      direction[2] / direction_norm)
         self.light_direction_noise[None] = light_direction_noise
         self.light_color[None] = light_color
 
@@ -397,7 +401,6 @@ class Renderer:
         for i in ti.static(range(3)):
             r[i] = ti.cast(c[i] * 255, ti.u8)
         return r
-
 
     @ti.func
     def add_voxel(self, idx, mat, color):

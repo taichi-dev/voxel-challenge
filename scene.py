@@ -107,7 +107,9 @@ class Scene:
     def __init__(self, voxel_edges=0.06, exposure=3):
         ti.init(arch=ti.vulkan)
         print(HELP_MSG)
-        self.window = ti.ui.Window("Taichi Voxel Renderer", SCREEN_RES, vsync=True)
+        self.window = ti.ui.Window("Taichi Voxel Renderer",
+                                   SCREEN_RES,
+                                   vsync=True)
         self.camera = Camera(self.window, up=UP_DIR)
         self.renderer = Renderer(dx=VOXEL_DX,
                                  image_res=SCREEN_RES,
@@ -122,7 +124,10 @@ class Scene:
     @ti.func
     def round_idx(idx_):
         idx = ti.cast(idx_, ti.f32)
-        return ti.Vector([ti.round(idx[0]), ti.round(idx[1]), ti.round(idx[2])]).cast(ti.i32)
+        return ti.Vector(
+            [ti.round(idx[0]),
+             ti.round(idx[1]),
+             ti.round(idx[2])]).cast(ti.i32)
 
     @ti.func
     def set_voxel(self, idx, mat, color):

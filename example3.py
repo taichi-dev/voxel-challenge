@@ -1,19 +1,36 @@
 from scene import Scene
-import math
+import taichi as ti
+from taichi.math import *
 
-scene = Scene()
+scene = Scene(voxel_edges=0, exposure=30)
 
 scene.set_floor(0, (1.0, 1.0, 1.0))
 
-radius = 30
-n = 1000
-for i in range(n):
-    t = i / n * 10
+n = 50
 
-    for k in range(3):
-        r = radius * k // 2
-        scene.set_voxel(idx=(math.cos(t) * r, t * 2, math.sin(t) * r),
-                        mat=2,
-                        color=(0.9, 0.5, 0.3))
 
+@ti.kernel
+def initialize_voxels():
+    for i in range(n):
+        for j in range(n):
+            scene.set_voxel(vec3(0, i, j), 1, vec3(0.9, 0.3, 0.3))
+            scene.set_voxel(vec3(n, i, j), 1, vec3(0.3, 0.9, 0.3))
+            scene.set_voxel(vec3(i, n, j), 1, vec3(1, 1, 1))
+            scene.set_voxel(vec3(i, 0, j), 1, vec3(1, 1, 1))
+            scene.set_voxel(vec3(i, j, 0), 1, vec3(1, 1, 1))
+
+    for i in range(-n // 8, n // 8):
+        for j in range(-n // 8, n // 8):
+            scene.set_voxel(vec3(i + n // 2, n, j + n // 2), 2, vec3(1, 1, 1))
+
+    for i_ in range(n // 8 * 3):
+        i = i_ * 2
+        for j in range(n // 4 * 3):
+            scene.set_voxel(
+                vec3(j + n // 8, n // 4 + ti.sin(
+                    (i + j) / n * 30) * 0.05 * n + i / 10, -i + n // 8 * 7), 1,
+                vec3(0.3, 0.3, 0.9))
+
+
+initialize_voxels()
 scene.finish()
