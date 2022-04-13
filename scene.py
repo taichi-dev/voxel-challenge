@@ -1,13 +1,6 @@
-from datetime import datetime
-from functools import partial
-from pathlib import Path
-from typing import Callable
 import time
-import math
-
 import numpy as np
 import taichi as ti
-
 from renderer import Renderer
 from math_utils import np_normalize, np_rotate_matrix
 
@@ -109,22 +102,6 @@ class Camera:
         if abs(cos) > 0.999:
             return np.array([-1.0, 0.0, 0.0])
         return np.cross(self._up, tgtdir)
-
-
-class EditModeProcessor:
-    def __init__(self, window, renderer):
-        self._window = window
-        self._renderer = renderer
-        self._last_mouse_pos = None
-        self._event_handled = False
-        self._cur_hovered_voxel_idx = None
-        self._voxel_locked = False
-
-    @property
-    def cur_locked_voxel_idx(self):
-        if not self._voxel_locked:
-            return None
-        return self._cur_hovered_voxel_idx
 
 
 class Scene:

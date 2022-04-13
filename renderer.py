@@ -1,7 +1,3 @@
-from datetime import datetime
-from pathlib import Path
-
-import numpy as np
 import taichi as ti
 
 from math_utils import (eps, inf, out_dir, ray_aabb_intersection)
@@ -10,9 +6,6 @@ MAX_RAY_DEPTH = 4
 use_directional_light = True
 
 DIS_LIMIT = 100
-
-SAVESLOT_FORMAT = "%Y%m%d_%H%M%S"
-MYNAME = "taichi-voxel-editor"
 
 
 @ti.data_oriented
@@ -48,9 +41,9 @@ class Renderer:
         self.floor_height = ti.field(dtype=ti.f32, shape=())
         self.floor_color = ti.Vector.field(3, dtype=ti.f32, shape=())
 
-        # What's the difference between `voxel_inv_dx` and `voxel_grid_res`...?
         self.voxel_dx = dx
         self.voxel_inv_dx = 1 / dx
+        # Note that voxel_inv_dx == voxel_grid_res iff the box has width = 1
         self.voxel_grid_res = 128
         voxel_grid_offset = [-self.voxel_grid_res // 2 for _ in range(3)]
 
@@ -73,13 +66,6 @@ class Renderer:
     def inside_grid(self, ipos):
         return ipos.min() >= -self.voxel_grid_res // 2 and ipos.max(
         ) < self.voxel_grid_res // 2
-
-    # The dda algorithm requires the voxel grid to have one surrounding layer of void region
-    # to correctly render the outmost voxel faces
-    @ti.func
-    def inside_grid_loose(self, ipos):
-        return ipos.min() >= -self.voxel_grid_res // 2 - 1 and ipos.max(
-        ) <= self.voxel_grid_res // 2
 
     @ti.func
     def query_density(self, ipos):
@@ -371,16 +357,6 @@ class Renderer:
                     samples)
 
     @ti.kernel
-    def total_non_empty_voxels(self) -> ti.i32:
-        counter = 0
-
-        for I in ti.grouped(self.voxel_material):
-            if self.voxel_material[I] > 0:
-                counter += 1
-
-        return counter
-
-    @ti.kernel
     def recompute_bbox(self):
         for d in ti.static(range(3)):
             self.bbox[0][d] = 1e9
@@ -403,31 +379,6 @@ class Renderer:
     def fetch_image(self):
         self._render_to_image(self.current_spp)
         return self._rendered_image
-
-    def raycast_voxel_grid(self, mouse_pos, solid):
-        """
-        Parameters:
-          mouse_pos: the mouse position, in pixels
-          solid: return the first solid cell or the last empty cell along the ray
-
-        Returns:
-          ijk: of the selected grid pos, None if not found
-        """
-        if solid:
-            offset = 1e-3
-        else:
-            offset = -1e-3
-
-        self.raycast(mouse_pos[0], mouse_pos[1], offset)
-
-        if self.cast_voxel_hit[None]:
-            return self.cast_voxel_index[None]
-        return None
-
-    @ti.kernel
-    def clear_cast_voxel(self):
-        self.cast_voxel_hit[None] = 0
-        self.cast_voxel_index[None] = ti.Vector([0, 0, 0])
 
     def check_voxel_in_range(self, idx):
         min_coord = -self.voxel_grid_res // 2
