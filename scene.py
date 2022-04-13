@@ -71,14 +71,15 @@ class Camera:
             ('e', [0, -1, 0]),
             ('q', [0, 1, 0]),
         ]
-        dir = None
+        dir = np.array([0.0, 0.0, 0.0])
+        pressed = False
         for key, d in lut:
             if win.is_pressed(key):
-                dir = d
-                break
-        if dir is None:
+                pressed = True
+                dir += np.array(d)
+        if not pressed:
             return False
-        dir = np.array(dir) * 0.02
+        dir *= 0.02
         self._lookat_pos += dir
         self._camera_pos += dir
         return True
@@ -115,10 +116,17 @@ class Scene:
                                  exposure=exposure)
 
         self.renderer.set_camera_pos(*self.camera.position)
-        self.renderer.floor_height[None] = -5e-3
+        self.set_floor(0.0, (1, 1, 1))
 
-    def set_voxel(self, idx, mat=1, color=(1, 1, 1)):
-        self.renderer.add_voxel(tuple(map(round, idx)), mat, color)
+    @staticmethod
+    @ti.func
+    def round_idx(idx_):
+        idx = ti.cast(idx_, ti.f32)
+        return ti.Vector([ti.round(idx[0]), ti.round(idx[1]), ti.round(idx[2])]).cast(ti.i32)
+
+    @ti.func
+    def set_voxel(self, idx, mat, color):
+        self.renderer.add_voxel(self.round_idx(idx), mat, color)
 
     def erase_voxel(self, idx):
         self.renderer.erase_voxel(tuple(map(round, idx)))
@@ -126,6 +134,9 @@ class Scene:
     def set_floor(self, height, color):
         self.renderer.floor_height[None] = height
         self.renderer.floor_color[None] = color
+
+    def set_direction_light(self, direction, direction_noise, color):
+        self.renderer.set_directional_light(direction, direction_noise, color)
 
     def finish(self):
         self.renderer.recompute_bbox()

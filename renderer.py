@@ -57,11 +57,11 @@ class Renderer:
         self.set_up(*up)
         self.set_fov(0.23)
 
-    def set_directional_light(self, direction, light_color,
-                              light_direction_noise):
-        self.light_direction[None] = direction
-        self.light_color[None] = light_color
+    def set_directional_light(self, direction, light_direction_noise, light_color):
+        direction_norm = (direction[0] ** 2 + direction[1] ** 2 + direction[2] ** 2) ** 0.5
+        self.light_direction[None] = (direction[0] / direction_norm, direction[1] / direction_norm, direction[2] / direction_norm)
         self.light_direction_noise[None] = light_direction_noise
+        self.light_color[None] = light_color
 
     @ti.func
     def inside_grid(self, ipos):
@@ -390,11 +390,20 @@ class Renderer:
                     f"Voxel ({idx[0], idx[1], idx[2]}) out of range. Each coordinate must belong to [{min_coord}, {max_coord})"
                 )
 
-    def add_voxel(self, ijk, mat=1, color=(0.5, 0.5, 0.5)):
-        self.check_voxel_in_range(ijk)
-        ijk = tuple(ijk)
-        self.voxel_material[ijk] = mat
-        self.voxel_color[ijk] = [int(color[i] * 255) for i in range(3)]
+    @staticmethod
+    @ti.func
+    def to_vec3u(c):
+        r = ti.Vector([ti.u8(0), ti.u8(0), ti.u8(0)])
+        for i in ti.static(range(3)):
+            r[i] = ti.cast(c[i] * 255, ti.u8)
+        return r
+
+
+    @ti.func
+    def add_voxel(self, idx, mat, color):
+        # self.check_voxel_in_range(idx)
+        self.voxel_material[idx] = mat
+        self.voxel_color[idx] = self.to_vec3u(color)
 
     def erase_voxel(self, ijk):
         self.check_voxel_in_range(ijk)
