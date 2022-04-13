@@ -11,7 +11,10 @@ for i in range(31):
 
         color = max(i, j)
         if color % 2 == 0:
-            scene.set_voxel(idx=(0, i, j - 30), color=((color % 3 // 2) * 0.5 + 0.5, ((color + 1) % 3 // 2) * 0.5 + 0.5, ((color + 2)  % 3 // 2) * 0.5 + 0.5))
+            scene.set_voxel(idx=(0, i, j - 30),
+                            color=((color % 3 // 2) * 0.5 + 0.5,
+                                   ((color + 1) % 3 // 2) * 0.5 + 0.5,
+                                   ((color + 2) % 3 // 2) * 0.5 + 0.5))
 
 for i in range(31):
     for j in range(31):

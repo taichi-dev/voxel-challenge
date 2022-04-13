@@ -8,8 +8,8 @@ import math
 import numpy as np
 import taichi as ti
 
-from renderer import Renderer, StorageBackend, SAVESLOT_FORMAT, MYNAME
-from np_utils import np_normalize, np_rotate_matrix
+from renderer import Renderer
+from math_utils import np_normalize, np_rotate_matrix
 
 VOXEL_DX = 1 / 64
 SCREEN_RES = (1280, 720)
@@ -111,48 +111,6 @@ class Camera:
         return np.cross(self._up, tgtdir)
 
 
-class HudManager:
-    def __init__(self,
-                 window,
-                 save_func: Callable = None,
-                 load_func: Callable = None,
-                 saveslots: Path = None):
-        self._window = window
-        self.in_edit_mode = False
-        self.is_saveload_enabled = False
-        self.save_func = save_func or (
-            lambda: print("Save func needs to be defined!"))
-        self.load_func = load_func or (
-            lambda: print("Load func needs to be defined!"))
-        self.saveslots = saveslots or Path.home() / Path(
-            f"./{MYNAME}_saveslots")
-        self.saveslots.mkdir(parents=True, exist_ok=True)
-
-    class UpdateStatus:
-        def __init__(self):
-            self.edit_mode_changed = False
-
-    def update_edit_mode(self):
-        res = HudManager.UpdateStatus()
-        win = self._window
-        return res
-
-    def update_voxel_info(self, voxel_idx, renderer):
-        win = self._window
-        win.GUI.begin('Voxel', 0.02, 0.12, 0.15, 0.2)
-        if voxel_idx is not None:
-            vc = renderer.get_voxel_color(voxel_idx)
-            vc = win.GUI.color_edit_3('Color', vc)
-            renderer.set_voxel_color(voxel_idx, vc)
-        else:
-            win.GUI.text('No voxel selected')
-        win.GUI.end()
-
-
-def print_help():
-    print(HELP_MSG)
-
-
 class EditModeProcessor:
     def __init__(self, window, renderer):
         self._window = window
@@ -172,26 +130,14 @@ class EditModeProcessor:
 class Scene:
     def __init__(self, voxel_edges=0.06, exposure=3):
         ti.init(arch=ti.vulkan)
-        print_help()
+        print(HELP_MSG)
         self.window = ti.ui.Window("Voxel Editor", SCREEN_RES, vsync=True)
         self.camera = Camera(self.window, up=UP_DIR)
-        self.hud_mgr = HudManager(self.window)
         self.renderer = Renderer(dx=VOXEL_DX,
                                  image_res=SCREEN_RES,
                                  up=UP_DIR,
                                  voxel_edges=voxel_edges,
                                  exposure=exposure)
-
-        # hard-code to local storage for now
-        storage = StorageBackend.LOCAL
-        print(
-            f'[{MYNAME}] You are currently using {storage.name} as storage backend.'
-        )
-
-        # setup save/load funcs
-        self.hud_mgr.save_func = partial(self.renderer.spit, storage,
-                                         self.hud_mgr.saveslots)
-        self.hud_mgr.load_func = partial(self.renderer.slurp, storage)
 
         self.renderer.set_camera_pos(*self.camera.position)
         self.renderer.floor_height[None] = -5e-3
@@ -209,11 +155,8 @@ class Scene:
     def finish(self):
         self.renderer.recompute_bbox()
         canvas = self.window.get_canvas()
-        edit_proc = EditModeProcessor(self.window, self.renderer)
         spp = 1
         while self.window.running:
-            mouse_excluded = self.camera.mouse_exclusive_owner
-            hud_res = self.hud_mgr.update_edit_mode()
             should_reset_framebuffer = False
 
             if self.camera.update_camera():
