@@ -30,8 +30,8 @@ class Camera:
         return True
 
     def update_camera(self):
-        res = self._update_by_mouse()
-        res = res or self._update_by_wasd()
+        res = self._update_by_wasd()
+        res = self._update_by_mouse() or res
         return res
 
     def _update_by_mouse(self):
