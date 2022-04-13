@@ -131,10 +131,12 @@ class Scene:
 
     @ti.func
     def set_voxel(self, idx, mat, color):
-        self.renderer.add_voxel(self.round_idx(idx), mat, color)
+        self.renderer.set_voxel(self.round_idx(idx), mat, color)
 
-    def erase_voxel(self, idx):
-        self.renderer.erase_voxel(tuple(map(round, idx)))
+    @ti.func
+    def get_voxel(self, idx):
+        mat, color = self.renderer.get_voxel(self.round_idx(idx))
+        return mat, color
 
     def set_floor(self, height, color):
         self.renderer.floor_height[None] = height

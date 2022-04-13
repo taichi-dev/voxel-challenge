@@ -369,9 +369,9 @@ class Renderer:
         for I in ti.grouped(self.voxel_material):
             if self.voxel_material[I] != 0:
                 for d in ti.static(range(3)):
-                    ti.atomic_min(self.bbox[0][d], I[d] * self.voxel_dx - 1e-5)
+                    ti.atomic_min(self.bbox[0][d], I[d] * self.voxel_dx - 1e-4)
                     ti.atomic_max(self.bbox[1][d],
-                                  (I[d] + 1) * self.voxel_dx + 1e-5)
+                                  (I[d] + 1) * self.voxel_dx + 1e-4)
 
     def reset_framebuffer(self):
         self.current_spp = 0
@@ -402,21 +402,21 @@ class Renderer:
             r[i] = ti.cast(c[i] * 255, ti.u8)
         return r
 
+    @staticmethod
     @ti.func
-    def add_voxel(self, idx, mat, color):
+    def to_vec3(c):
+        r = ti.Vector([0.0, 0.0, 0.0])
+        for i in ti.static(range(3)):
+            r[i] = ti.cast(c[i], ti.f32) / 255.0
+        return r
+
+    @ti.func
+    def set_voxel(self, idx, mat, color):
         # self.check_voxel_in_range(idx)
         self.voxel_material[idx] = mat
         self.voxel_color[idx] = self.to_vec3u(color)
 
-    def erase_voxel(self, ijk):
-        self.check_voxel_in_range(ijk)
-        self.voxel_material[tuple(ijk)] = 0
-
-    def set_voxel_color(self, ijk, color):
-        ijk = tuple(ijk)
-        self.voxel_color[ijk] = [int(color[i] * 255) for i in range(3)]
-
-    def get_voxel_color(self, ijk):
-        ijk = tuple(ijk)
-        res = self.voxel_color[ijk]
-        return tuple([float(x) / 255.0 for x in res])
+    def get_voxel(self, ijk):
+        mat = self.voxel_material[ijk]
+        color = self.voxel_color[ijk]
+        return mat, self.to_vec3(color)
