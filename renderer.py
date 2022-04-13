@@ -41,6 +41,8 @@ class Renderer:
         self.floor_height = ti.field(dtype=ti.f32, shape=())
         self.floor_color = ti.Vector.field(3, dtype=ti.f32, shape=())
 
+        self.background_color = ti.Vector.field(3, dtype=ti.f32, shape=())
+
         self.voxel_dx = dx
         self.voxel_inv_dx = 1 / dx
         # Note that voxel_inv_dx == voxel_grid_res iff the box has width = 1
@@ -56,6 +58,8 @@ class Renderer:
         self._rendered_image = ti.Vector.field(3, float, image_res)
         self.set_up(*up)
         self.set_fov(0.23)
+
+        self.floor_height[None] = -1e10  # No floor
 
     def set_directional_light(self, direction, light_direction_noise,
                               light_color):
@@ -114,33 +118,15 @@ class Renderer:
         return voxel_color * (1.3 - 1.2 * f), is_light
 
     @ti.func
-    def sdf(self, o):
-        dist = o[1] - self.floor_height[None]
-        return dist
-
-    @ti.func
     def ray_march(self, p, d):
-        j = 0
-        dist = 0.0
-        limit = 200
-        while j < limit and self.sdf(p + dist * d) > 1e-8 and dist < DIS_LIMIT:
-            dist += self.sdf(p + dist * d)
-            j += 1
-        if dist > DIS_LIMIT:
-            dist = inf
+        dist = inf
+        if d[1] < -eps and self.floor_height[None] > -1e9:
+            dist = (self.floor_height[None] - p[1]) / d[1]
         return dist
 
     @ti.func
     def sdf_normal(self, p):
-        d = 1e-3
-        n = ti.Vector([0.0, 0.0, 0.0])
-        for i in ti.static(range(3)):
-            inc = p
-            dec = p
-            inc[i] += d
-            dec[i] -= d
-            n[i] = (0.5 / d) * (self.sdf(inc) - self.sdf(dec))
-        return n.normalized()
+        return ti.Vector([0.0, 1.0, 0.0])  # up
 
     @ti.func
     def sdf_color(self, p):
@@ -205,22 +191,6 @@ class Renderer:
                     normal = -mm * rsign
                 i += 1
         return hit_distance, normal, c, hit_light, voxel_index
-
-    @ti.kernel
-    def raycast(self, mouse_x: ti.i32, mouse_y: ti.i32, offset: ti.f32):
-        closest = inf
-        normal = ti.Vector([0.0, 0.0, 0.0])
-        c = ti.Vector([0.0, 0.0, 0.0])
-        d = self.get_cast_dir(mouse_x, mouse_y)
-        closest, normal, c, _, vx_idx = self.dda_voxel(self.camera_pos[None],
-                                                       d)
-
-        if closest < inf:
-            self.cast_voxel_hit[None] = 1
-            p = self.camera_pos[None] + (closest + offset) * d
-            self.cast_voxel_index[None] = self._to_voxel_index(p)
-        else:
-            self.cast_voxel_hit[None] = 0
 
     @ti.func
     def inside_particle_grid(self, ipos):
@@ -302,12 +272,13 @@ class Renderer:
 
             depth = 0
             hit_light = 0
+            hit_background = 0
 
+            # Tracing begin
             while depth < MAX_RAY_DEPTH:
                 closest, normal, c, hit_light = self.next_hit(pos, d, t)
                 hit_pos = pos + closest * d
                 depth += 1
-                ray_depth = depth
                 if not hit_light and normal.norm() != 0:
                     d = out_dir(normal)
                     pos = hit_pos + 1e-4 * d
@@ -327,23 +298,31 @@ class Renderer:
                             dist, _, _, hit_light_ = self.next_hit(
                                 pos, light_dir, t)
                             if dist > DIS_LIMIT:
+                                # hit background
                                 contrib += throughput * \
                                     self.light_color[None] * dot
                 else:  # hit sky or light
-                    depth = MAX_RAY_DEPTH
+                    if depth == 1 and not hit_light:
+                        hit_background = 1
+                    break
 
+                # Russian roulette
                 max_c = throughput.max()
                 if ti.random() > max_c:
-                    depth = MAX_RAY_DEPTH
                     throughput = [0, 0, 0]
+                    break
                 else:
                     throughput /= max_c
+
+            # Tracing end
 
             if hit_light:
                 contrib += throughput * c
             else:
                 throughput *= 0
 
+            if hit_background:
+                contrib = self.background_color[None]
             self.color_buffer[u, v] += contrib
 
     @ti.kernel
@@ -369,9 +348,8 @@ class Renderer:
         for I in ti.grouped(self.voxel_material):
             if self.voxel_material[I] != 0:
                 for d in ti.static(range(3)):
-                    ti.atomic_min(self.bbox[0][d], I[d] * self.voxel_dx - 1e-4)
-                    ti.atomic_max(self.bbox[1][d],
-                                  (I[d] + 1) * self.voxel_dx + 1e-4)
+                    ti.atomic_min(self.bbox[0][d], (I[d] - 1) * self.voxel_dx)
+                    ti.atomic_max(self.bbox[1][d], (I[d] + 2) * self.voxel_dx)
 
     def reset_framebuffer(self):
         self.current_spp = 0
@@ -384,15 +362,6 @@ class Renderer:
     def fetch_image(self):
         self._render_to_image(self.current_spp)
         return self._rendered_image
-
-    def check_voxel_in_range(self, idx):
-        min_coord = -self.voxel_grid_res // 2
-        max_coord = self.voxel_grid_res // 2
-        for i in range(3):
-            if not (min_coord <= idx[0] < max_coord):
-                raise ValueError(
-                    f"Voxel ({idx[0], idx[1], idx[2]}) out of range. Each coordinate must belong to [{min_coord}, {max_coord})"
-                )
 
     @staticmethod
     @ti.func
@@ -412,7 +381,6 @@ class Renderer:
 
     @ti.func
     def set_voxel(self, idx, mat, color):
-        # self.check_voxel_in_range(idx)
         self.voxel_material[idx] = mat
         self.voxel_color[idx] = self.to_vec3u(color)
 

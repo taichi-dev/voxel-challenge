@@ -50,8 +50,9 @@ class Camera:
         out_dir = self._lookat_pos - self._camera_pos
         leftdir = self._compute_left_dir(np_normalize(out_dir))
 
-        rotx = np_rotate_matrix(self._up, dx)
-        roty = np_rotate_matrix(leftdir, dy)
+        scale = 3
+        rotx = np_rotate_matrix(self._up, dx * scale)
+        roty = np_rotate_matrix(leftdir, dy * scale)
 
         out_dir_homo = np.array(list(out_dir) + [0.0])
         new_out_dir = np.matmul(np.matmul(roty, rotx), out_dir_homo)[:3]
@@ -79,7 +80,7 @@ class Camera:
                 dir += np.array(d)
         if not pressed:
             return False
-        dir *= 0.02
+        dir *= 0.05
         self._lookat_pos += dir
         self._camera_pos += dir
         return True
@@ -118,7 +119,6 @@ class Scene:
                                  exposure=exposure)
 
         self.renderer.set_camera_pos(*self.camera.position)
-        self.set_floor(0.0, (1, 1, 1))
 
     @staticmethod
     @ti.func
@@ -144,6 +144,9 @@ class Scene:
 
     def set_direction_light(self, direction, direction_noise, color):
         self.renderer.set_directional_light(direction, direction_noise, color)
+
+    def set_background_color(self, color):
+        self.renderer.background_color[None] = color
 
     def finish(self):
         self.renderer.recompute_bbox()

@@ -4,7 +4,7 @@ from taichi.math import *
 
 scene = Scene(exposure=10)
 scene.set_floor(-0.05, (1.0, 1.0, 1.0))
-scene.set_direction_light((1, 0, 0), 0.1, color=(1, 1, 1))
+scene.set_background_color((1.0, 0, 0))
 
 
 @ti.kernel
