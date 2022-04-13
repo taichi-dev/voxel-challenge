@@ -57,10 +57,11 @@ class Renderer:
         self.set_up(*up)
         self.set_fov(0.23)
 
-        self.light_direction[None] = [1.2, 0.3, 0.7]
-        self.light_direction_noise[None] = 0.03
-        L = 0.0  # Turn off directional light
-        self.light_color[None] = [L, L, L]
+    def set_directional_light(self, direction, light_color,
+                              light_direction_noise):
+        self.light_direction[None] = direction
+        self.light_color[None] = light_color
+        self.light_direction_noise[None] = light_direction_noise
 
     @ti.func
     def inside_grid(self, ipos):
@@ -314,13 +315,13 @@ class Renderer:
                             ti.random() - 0.5,
                             ti.random() - 0.5
                         ]) * self.light_direction_noise[None]
-                        direct = (self.light_direction[None] +
-                                  dir_noise).normalized()
-                        dot = direct.dot(normal)
+                        light_dir = (self.light_direction[None] +
+                                     dir_noise).normalized()
+                        dot = light_dir.dot(normal)
                         if dot > 0:
                             hit_light_ = 0
                             dist, _, _, hit_light_ = self.next_hit(
-                                pos, direct, t)
+                                pos, light_dir, t)
                             if dist > DIS_LIMIT:
                                 contrib += throughput * \
                                     self.light_color[None] * dot

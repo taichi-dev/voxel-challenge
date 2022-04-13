@@ -1,4 +1,4 @@
-# Taichi Voxel Editor
+# Taichi Voxel Renderer
 
 ## Installation
 
