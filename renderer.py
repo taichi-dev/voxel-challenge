@@ -22,7 +22,7 @@ class Renderer:
         self.bbox = ti.Vector.field(3, dtype=ti.f32, shape=2)
         self.fov = ti.field(dtype=ti.f32, shape=())
         self.voxel_color = ti.Vector.field(3, dtype=ti.u8)
-        self.voxel_material = ti.field(dtype=ti.u8)
+        self.voxel_material = ti.field(dtype=ti.i8)
 
         self.light_direction = ti.Vector.field(3, dtype=ti.f32, shape=())
         self.light_direction_noise = ti.field(dtype=ti.f32, shape=())

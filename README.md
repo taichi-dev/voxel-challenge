@@ -13,15 +13,15 @@ to install the dependendies of the voxel-editor.
 ## Quickstart
 
 ```sh
-python3 scene.py
+python3 example1.py  # example2/3/4.py
 ```
 
-if you want to save/load voxels, you might have to invoke the
-editor with `sudo`:
+Mouse and Keyboard interface:
 
-```sh
-sudo python3 scene.py
-```
++ Drag with your left mouse button to rotate camera.
++ Press `W/A/S/D/Q/E` to move camera.
++ Press `P` to save screenshot.
+
 
 ## Demo
 ![](./demo.jpg)

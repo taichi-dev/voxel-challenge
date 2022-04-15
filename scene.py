@@ -1,4 +1,5 @@
 import time
+from datetime import datetime
 import numpy as np
 import taichi as ti
 from renderer import Renderer
@@ -168,6 +169,10 @@ class Scene:
             for _ in range(spp):
                 self.renderer.accumulate()
             img = self.renderer.fetch_image()
+            if self.window.is_pressed('p'):
+                timestamp = datetime.today().strftime('%Y-%m-%d-%H:%M:%S')
+                fname = f"sceenshot{timestamp}.jpg"
+                ti.tools.image.imwrite(img, fname)
             canvas.set_image(img)
             elapsed_time = time.time() - t
             if elapsed_time * TARGET_FPS > 1:
