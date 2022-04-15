@@ -3,3 +3,5 @@
 outputs
 .DS_Store
 imgui.ini
+.*.swp
+.idea
