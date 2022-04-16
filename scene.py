@@ -143,7 +143,7 @@ class Scene:
         self.renderer.floor_height[None] = height
         self.renderer.floor_color[None] = color
 
-    def set_direction_light(self, direction, direction_noise, color):
+    def set_directional_light(self, direction, direction_noise, color):
         self.renderer.set_directional_light(direction, direction_noise, color)
 
     def set_background_color(self, color):
