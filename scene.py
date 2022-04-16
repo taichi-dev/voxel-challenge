@@ -176,7 +176,8 @@ class Scene:
             canvas.set_image(img)
             elapsed_time = time.time() - t
             if elapsed_time * TARGET_FPS > 1:
-                spp = max(spp - 1, 1)
+                spp = int(spp / (elapsed_time * TARGET_FPS) - 1)
+                spp = max(spp, 1)
             else:
                 spp += 1
             self.window.show()
