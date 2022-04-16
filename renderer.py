@@ -208,13 +208,6 @@ class Renderer:
         hit_light = 0
         closest, normal, c, hit_light, vx_idx = self.dda_voxel(pos, d)
 
-        if d[2] != 0:
-            ray_closest = -(pos[2] + 5.5) / d[2]
-            if ray_closest > 0 and ray_closest < closest:
-                closest = ray_closest
-                normal = ti.Vector([0.0, 0.0, 1.0])
-                c = ti.Vector([0.6, 0.7, 0.7])
-
         ray_march_dist = self.ray_march(pos, d)
         if ray_march_dist < DIS_LIMIT and ray_march_dist < closest:
             closest = ray_march_dist
@@ -276,10 +269,10 @@ class Renderer:
             hit_background = 0
 
             # Tracing begin
-            while depth < MAX_RAY_DEPTH:
+            for bounce in range(MAX_RAY_DEPTH):
+                depth += 1
                 closest, normal, c, hit_light = self.next_hit(pos, d, t)
                 hit_pos = pos + closest * d
-                depth += 1
                 if not hit_light and normal.norm() != 0 and closest < 1e8:
                     d = out_dir(normal)
                     pos = hit_pos + 1e-4 * d
@@ -303,7 +296,8 @@ class Renderer:
                                 contrib += throughput * \
                                     self.light_color[None] * dot
                 else:  # hit background or light voxel, terminate tracing
-                    depth = MAX_RAY_DEPTH
+                    hit_background = 1
+                    break
 
                 # Russian roulette
                 max_c = throughput.max()
@@ -316,9 +310,10 @@ class Renderer:
 
             if hit_light:
                 contrib += throughput * c
-
-            if hit_background:
-                contrib = self.background_color[None]
+            else:
+                if depth == 1 and hit_background:
+                    # Direct hit to background
+                    contrib = self.background_color[None]
             self.color_buffer[u, v] += contrib
 
     @ti.kernel
