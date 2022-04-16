@@ -380,6 +380,7 @@ class Renderer:
         self.voxel_material[idx] = mat
         self.voxel_color[idx] = self.to_vec3u(color)
 
+    @ti.func
     def get_voxel(self, ijk):
         mat = self.voxel_material[ijk]
         color = self.voxel_color[ijk]
