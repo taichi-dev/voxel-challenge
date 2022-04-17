@@ -171,7 +171,7 @@ class Scene:
             img = self.renderer.fetch_image()
             if self.window.is_pressed('p'):
                 timestamp = datetime.today().strftime('%Y-%m-%d-%H%M%S')
-                fname = f"sceenshot{timestamp}.jpg"
+                fname = f"screenshot{timestamp}.jpg"
                 ti.tools.image.imwrite(img, fname)
             canvas.set_image(img)
             elapsed_time = time.time() - t
