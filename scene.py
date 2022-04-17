@@ -17,6 +17,8 @@ Camera:
 ====================================================
 '''
 
+MAT_LAMBERTIAN = 1
+MAT_LIGHT = 2
 
 class Camera:
     def __init__(self, window, up):
