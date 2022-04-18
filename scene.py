@@ -1,4 +1,5 @@
 import time
+import os
 from datetime import datetime
 import numpy as np
 import taichi as ti
@@ -173,7 +174,8 @@ class Scene:
             img = self.renderer.fetch_image()
             if self.window.is_pressed('p'):
                 timestamp = datetime.today().strftime('%Y-%m-%d-%H%M%S')
-                fname = f"screenshot{timestamp}.jpg"
+                dirpath = os.getcwd()
+                fname = os.path.join(dirpath, f"screenshot{timestamp}.jpg")
                 ti.tools.image.imwrite(img, fname)
                 print(f"Screenshot has been saved to {fname}")
             canvas.set_image(img)
