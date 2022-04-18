@@ -173,6 +173,7 @@ class Scene:
                 timestamp = datetime.today().strftime('%Y-%m-%d-%H%M%S')
                 fname = f"screenshot{timestamp}.jpg"
                 ti.tools.image.imwrite(img, fname)
+                print(f"Screenshot has been saved to {fname}")
             canvas.set_image(img)
             elapsed_time = time.time() - t
             if elapsed_time * TARGET_FPS > 1:
