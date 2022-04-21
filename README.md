@@ -2,7 +2,7 @@
 
 ## Installation
 
-**Make sure your `pip` is the latest**:
+Make sure your `pip` is the latest one:
 
 ```bash
 pip3 install pip --upgrade
@@ -33,6 +33,6 @@ Mouse and keyboard interface:
 
 ## Show your artwork 
 
-**Please replace the demo below by your own artwork:**
+Please put your artwork below (replace `demo.jpg`)
 
 ![](./demo.jpg)
