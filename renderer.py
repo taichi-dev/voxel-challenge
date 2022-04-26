@@ -372,7 +372,7 @@ class Renderer:
 
     @ti.func
     def set_voxel(self, idx, mat, color):
-        self.voxel_material[idx] = mat
+        self.voxel_material[idx] = ti.cast(mat, ti.i8)
         self.voxel_color[idx] = self.to_vec3u(color)
 
     @ti.func
