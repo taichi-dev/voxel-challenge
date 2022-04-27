@@ -357,6 +357,7 @@ class Renderer:
     @staticmethod
     @ti.func
     def to_vec3u(c):
+        c = ti.math.clamp(c, 0.0, 1.0)
         r = ti.Vector([ti.u8(0), ti.u8(0), ti.u8(0)])
         for i in ti.static(range(3)):
             r[i] = ti.cast(c[i] * 255, ti.u8)
