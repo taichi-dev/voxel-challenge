@@ -1,2 +1,2 @@
 numpy>=1.21.3
-taichi>=1.0.0
+taichi==1.0.1
