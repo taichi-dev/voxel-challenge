@@ -4,7 +4,7 @@
 <img src="https://github.com/taichi-dev/public_files/blob/master/voxel-challenge/tree.jpg" width="60%"></img>
 </p>
 
-> We recommend putting your artwok here so other people can quickly see your results.
+> We recommend you replacing the above image with your artwok so other people can quickly see your results.
 
 You are invited to create your voxel artwork by putting your code in `main.py`.
 
