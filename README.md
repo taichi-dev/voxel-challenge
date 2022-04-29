@@ -27,7 +27,7 @@ And also call `scene.finish()` at the last.
 
 ## Installation
 
-Make sure your `pip` is the latest one:
+Make sure your `pip` is up-to-date:
 
 ```bash
 pip3 install pip --upgrade
