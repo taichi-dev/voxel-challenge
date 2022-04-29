@@ -1,8 +1,10 @@
-# Taichi Voxel Challenge
+# Taichi Voxel Challenge(#title)
 
 <p align="center">
 <img src="https://github.com/taichi-dev/public_files/blob/master/voxel-challenge/tree.jpg" width="60%"></img>
 </p>
+
+> We recommend putting your artwok here so other people can quickly see your results.
 
 You are invited to create your voxel artwork by putting your code in `main.py`.
 
@@ -60,6 +62,4 @@ Mouse and keyboard interface:
 
 ## Show your artwork 
 
-Please put your artwork here (replace `demo.jpg`)
-
-![](./demo.jpg)
+Please put your artwork at the beginning of this readme file. For example, assuming your screenshot is saved as `demo.jpg`, you can put `![](./demo.jpg)` directly under the [title](#title).
