@@ -60,4 +60,4 @@ Mouse and keyboard interface:
 
 Please put your artwork here (replace `demo.jpg`)
 
-![](./deno.jpg)
+![](./demo.jpg)
