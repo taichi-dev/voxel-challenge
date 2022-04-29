@@ -1,17 +1,19 @@
 # <a name="title">Taichi Voxel Challenge</a>
 
 <p align="center">
-<img src="https://github.com/taichi-dev/public_files/blob/master/voxel-challenge/tree.jpg" width="60%"></img>
+<img src="demo.jpg" width="60%"></img>
 </p>
 
-> We recommend you replacing the above image by your artwork so other people can quickly see your results.
+> Please replace the image above with yours, so that other people can immediately see your results :-)
 
-You are invited to create your voxel artwork by putting your code in `main.py`.
+We invite you to create your voxel artwork, by putting your code in `main.py`!
 
-+ You can import only two modules: `taichi` (pip installation guide below) and `scene.py` (in the repo).
+Rules:
+
++ You can only import two modules: `taichi` (`pip` installation guide below) and `scene.py` (in the repo).
 + The code in `main.py` cannot exceed 99 lines, and each line cannot exceed 120 characters.
 
-The availabe APIs are:
+The available APIs are:
 
 + `scene = Scene(voxel_edges, exposure)`
 + `scene.set_voxel(voxel_id, material, color)`
@@ -20,9 +22,9 @@ The availabe APIs are:
 + `scene.set_directional_light(dir, noise, color)`
 + `scene.set_background_color(color)`
 
-And also call `scene.finish()` at the last.
+Remember to call `scene.finish()` at last.
 
-**Modifying other files except `main.py` is not allowed.**
+**Modifying files other than `main.py` is not allowed.**
 
 
 ## Installation
@@ -33,7 +35,7 @@ Make sure your `pip` is up-to-date:
 pip3 install pip --upgrade
 ```
 
-Assume you have a Python 3 environment properly, you can simply run:
+Assume you have a Python 3 environment, you can simply run:
 
 ```bash
 pip3 install -r requirements.txt
@@ -44,7 +46,7 @@ to install the dependendies of the voxel renderer.
 ## Quickstart
 
 ```sh
-python3 example1.py  # example2/3/4.py
+python3 example1.py  # example2/3/.../7/8.py
 ```
 
 Mouse and keyboard interface:
@@ -62,4 +64,4 @@ Mouse and keyboard interface:
 
 ## Show your artwork 
 
-Please put your artwork at the beginning of this readme file. For example, assuming your screenshot is saved as `demo.jpg`, you can put `![](./demo.jpg)` directly under the [title](#title).
+Please put your artwork at the beginning of this README file. You can simply replace the `demo.jpg` file with your creation.
