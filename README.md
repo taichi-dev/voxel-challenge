@@ -1,4 +1,4 @@
-# Taichi Voxel Challenge(#title)
+# [Taichi Voxel Challenge](#title)
 
 <p align="center">
 <img src="https://github.com/taichi-dev/public_files/blob/master/voxel-challenge/tree.jpg" width="60%"></img>
