@@ -1,5 +1,24 @@
 # Taichi Voxel Challenge
 
+You are required to create your voxel artwork by putting your code in `main.py`.
+
++ You can import only two modules: `taichi` (pip installation guide below) and `scene.py` (in the repo).
++ Your code cannot exceed 99 lines.
+
+The availabe APIs are:
+
++ `scene = Scene(voxel_edges=, exposure=)`
++ `scene.set_voxel(voxel_id, material, color)`
++ `materal, color = scene.get_voxel(voxel_id)`
++ `scene.set_floor(height, color)`
++ `scene.set_directional_light(dir, noise, color)`
++ `scene.set_background_color(color)`
+
+And also call `scene.finish()` in the last.
+
+Modifying other files except `main.py` is not allowed.
+
+
 ## Installation
 
 Make sure your `pip` is the latest one:
