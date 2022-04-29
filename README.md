@@ -7,7 +7,7 @@ You are required to create your voxel artwork by putting your code in `main.py`.
 
 The availabe APIs are:
 
-+ `scene = Scene(voxel_edges=, exposure=)`
++ `scene = Scene(voxel_edges, exposure)`
 + `scene.set_voxel(voxel_id, material, color)`
 + `materal, color = scene.get_voxel(voxel_id)`
 + `scene.set_floor(height, color)`
