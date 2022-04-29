@@ -1,10 +1,10 @@
 # <a name="title">Taichi Voxel Challenge</a>
 
 <p align="center">
-<img src="demo.jpg" width="60%"></img>
+<img src="demo.jpg" width="75%"></img>
 </p>
 
-> Figure: result of `python3 example6.py`. Please replace the image above with yours, so that other people can immediately see your results :-)
+> Figure: result of `python3 example6.py`. Please replace the image above (demo.jpg) with yours, so that other people can immediately see your results :-)
 
 We invite you to create your voxel artwork, by putting your code in `main.py`!
 
@@ -53,7 +53,7 @@ Mouse and keyboard interface:
 
 + Drag with your left mouse button to rotate camera.
 + Press `W/A/S/D/Q/E` to move camera.
-+ Press `P` to save screenshot.
++ Press `P` to save a screenshot.
 
 ## More examples
 
