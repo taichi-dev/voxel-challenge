@@ -6,12 +6,12 @@
 
 > Figure: result of `python3 example6.py`. Please replace the image above (`demo.jpg`) with yours, so that other people can immediately see your results :-)
 
-We invite you to create your voxel artwork, by putting your code in `main.py`!
+We invite you to create your voxel artwork, by putting your [Taichi](https://github.com/taichi-dev/taichi) code in `main.py`!
 
 Rules:
 
 + You can only import two modules: `taichi` (`pip` installation guide below) and `scene.py` (in the repo).
-+ The code in `main.py` cannot exceed 99 lines, and each line cannot exceed 120 characters.
++ The code in `main.py` cannot exceed 99 lines. Each line cannot exceed 120 characters.
 
 The available APIs are:
 
@@ -23,6 +23,8 @@ The available APIs are:
 + `scene.set_background_color(color)`
 
 Remember to call `scene.finish()` at last.
+
+**Taichi lang documentation:** https://docs.taichi.graphics/
 
 **Modifying files other than `main.py` is not allowed.**
 
@@ -41,7 +43,7 @@ Assume you have a Python 3 environment, simply run:
 pip3 install -r requirements.txt
 ```
 
-to install the dependendies of the voxel renderer.
+to install the dependencies of the voxel renderer.
 
 ## Quickstart
 
