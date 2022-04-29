@@ -4,7 +4,7 @@
 <img src="demo.jpg" width="60%"></img>
 </p>
 
-> Please replace the image above with yours, so that other people can immediately see your results :-)
+> Figure: result of `python3 example6.py`. Please replace the image above with yours, so that other people can immediately see your results :-)
 
 We invite you to create your voxel artwork, by putting your code in `main.py`!
 
