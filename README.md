@@ -9,7 +9,7 @@ The availabe APIs are:
 
 + `scene = Scene(voxel_edges, exposure)`
 + `scene.set_voxel(voxel_id, material, color)`
-+ `materal, color = scene.get_voxel(voxel_id)`
++ `material, color = scene.get_voxel(voxel_id)`
 + `scene.set_floor(height, color)`
 + `scene.set_directional_light(dir, noise, color)`
 + `scene.set_background_color(color)`
