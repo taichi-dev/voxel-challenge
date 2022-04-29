@@ -3,7 +3,7 @@
 You are required to create your voxel artwork by putting your code in `main.py`.
 
 + You can import only two modules: `taichi` (pip installation guide below) and `scene.py` (in the repo).
-+ Your code cannot exceed 99 lines.
++ The code in `main.py` cannot exceed 99 lines, and each line cannot exceed 120 characters.
 
 The availabe APIs are:
 
@@ -14,9 +14,9 @@ The availabe APIs are:
 + `scene.set_directional_light(dir, noise, color)`
 + `scene.set_background_color(color)`
 
-And also call `scene.finish()` in the last.
+And also call `scene.finish()` at the last.
 
-Modifying other files except `main.py` is not allowed.
+**Modifying other files except `main.py` is not allowed.**
 
 
 ## Installation
