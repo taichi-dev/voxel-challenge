@@ -35,7 +35,7 @@ Make sure your `pip` is up-to-date:
 pip3 install pip --upgrade
 ```
 
-Assume you have a Python 3 environment, you can simply run:
+Assume you have a Python 3 environment, simply run:
 
 ```bash
 pip3 install -r requirements.txt
@@ -51,8 +51,8 @@ python3 example1.py  # example2/3/.../7/8.py
 
 Mouse and keyboard interface:
 
-+ Drag with your left mouse button to rotate camera.
-+ Press `W/A/S/D/Q/E` to move camera.
++ Drag with your left mouse button to rotate the camera.
++ Press `W/A/S/D/Q/E` to move the camera.
 + Press `P` to save a screenshot.
 
 ## More examples
@@ -64,4 +64,4 @@ Mouse and keyboard interface:
 
 ## Show your artwork 
 
-Please put your artwork at the beginning of this README file. You can simply replace the `demo.jpg` file with your creation.
+Please put your artwork at the beginning of this README file. Replacing the `demo.jpg` file with your creation will do the job.
