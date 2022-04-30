@@ -24,7 +24,7 @@ The available APIs are:
 
 Remember to call `scene.finish()` at last.
 
-**Taichi lang documentation:** https://docs.taichi.graphics/
+**Taichi Lang documentation:** https://docs.taichi-lang.org/
 
 **Modifying files other than `main.py` is not allowed.**
 
