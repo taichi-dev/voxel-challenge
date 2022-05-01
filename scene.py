@@ -125,6 +125,8 @@ class Scene:
                                  exposure=exposure)
 
         self.renderer.set_camera_pos(*self.camera.position)
+        if not os.path.exists('screenshot'):
+            os.makedirs('screenshot')
 
     @staticmethod
     @ti.func
