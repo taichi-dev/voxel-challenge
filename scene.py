@@ -5,6 +5,8 @@ import numpy as np
 import taichi as ti
 from renderer import Renderer
 from math_utils import np_normalize, np_rotate_matrix
+import __main__
+
 
 VOXEL_DX = 1 / 64
 SCREEN_RES = (1280, 720)
@@ -123,6 +125,8 @@ class Scene:
                                  exposure=exposure)
 
         self.renderer.set_camera_pos(*self.camera.position)
+        if not os.path.exists('screenshot'):
+            os.makedirs('screenshot')
 
     @staticmethod
     @ti.func
@@ -175,7 +179,8 @@ class Scene:
             if self.window.is_pressed('p'):
                 timestamp = datetime.today().strftime('%Y-%m-%d-%H%M%S')
                 dirpath = os.getcwd()
-                fname = os.path.join(dirpath, f"screenshot{timestamp}.jpg")
+                main_filename = os.path.split(__main__.__file__)[1]
+                fname = os.path.join(dirpath, 'screenshot', f"{main_filename}-{timestamp}.jpg")
                 ti.tools.image.imwrite(img, fname)
                 print(f"Screenshot has been saved to {fname}")
             canvas.set_image(img)
