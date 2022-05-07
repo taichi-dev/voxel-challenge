@@ -1,7 +1,4 @@
 import math
-from unittest import runner
-
-from torch import norm
 import taichi as ti
 
 from math_utils import (eps, inf, out_dir, ray_aabb_intersection)
