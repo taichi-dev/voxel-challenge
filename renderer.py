@@ -335,10 +335,10 @@ class Renderer:
                 depth += 1
                 closest, normal, c, hit_light, iters = self.next_hit(pos, d, t)
                 hit_pos = pos + closest * d
-                if depth == 1:
-                    worst_case_iters = ti.simt.subgroup.reduce_max(iters)
-                    best_case_iters = ti.simt.subgroup.reduce_min(iters)
-                    self.color_buffer[u, v] += ti.Vector([worst_case_iters / 64.0, best_case_iters / 64.0, 0.0])
+                # if depth == 1:
+                #     worst_case_iters = ti.simt.subgroup.reduce_max(iters)
+                #     best_case_iters = ti.simt.subgroup.reduce_min(iters)
+                #     self.color_buffer[u, v] += ti.Vector([worst_case_iters / 64.0, best_case_iters / 64.0, 0.0])
                 if not hit_light and normal.norm() != 0 and closest < 1e8:
                     d = out_dir(normal)
                     pos = hit_pos + 1e-4 * d
