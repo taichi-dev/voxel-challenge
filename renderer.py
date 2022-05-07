@@ -1,5 +1,7 @@
 import math
 from unittest import runner
+
+from torch import norm
 import taichi as ti
 
 from math_utils import (eps, inf, out_dir, ray_aabb_intersection)
@@ -227,51 +229,51 @@ class Renderer:
             #         normal = -mm * rsign
             #     iters += 1
 
-            running = 1
-            while running and iters < 512:
-                voxel_pos = self.voxel_inv_dx * pos
+            voxel_pos = self.voxel_inv_dx * pos
 
-                if not self.inside_particle_grid(ti.floor(voxel_pos)):
-                    break
-
+            while iters < 512:
                 ipos = ti.cast(ti.floor(voxel_pos), ti.i32) >> current_lod
+                sample = self.query_occupancy(ipos, current_lod)
+                while sample and current_lod > 0:
+                    # If we hit something, traverse down the LODs
+                    # Until we reach LOD 0 or reach a empty cell
+                    current_lod = current_lod - 1
+                    ipos = ti.cast(ti.floor(voxel_pos), ti.i32) >> current_lod
+                    sample = self.query_occupancy(ipos, current_lod)
+
                 voxel_min = ti.cast(ipos << current_lod, ti.f32)
                 voxel_max = ti.cast((ipos + 1) << current_lod, ti.f32)
+                it, near, far = ray_aabb_intersection(voxel_min * self.voxel_dx, voxel_max * self.voxel_dx, eye_pos, d)
 
-                sample = self.query_occupancy(ipos, current_lod)
-                if sample and current_lod != 0:
-                    current_lod = current_lod - 1
+                if near > scene_far:
+                    break
+
+                if sample:
+                    # If at LOD = 0, we get a voxel hit
+                    hit_distance = near
+                    voxel_index = ipos
+                    break
                 else:
-                    it, near, far = ray_aabb_intersection(voxel_min * self.voxel_dx, voxel_max * self.voxel_dx, eye_pos, d)
-
-                    if near > scene_far:
-                        break
-
-                    if sample:
-                        # If at LOD = 0, we get a voxel hit
-                        hit_distance = near
-                        # hit_pos = eye_pos + (near + far) * 0.5 * d
-                        voxel_index = ipos
-                        c, hit_light = self.voxel_surface_color(pos)
-                        
-                        dis = ti.math.fract(voxel_pos)
-                        dis = min(dis, 1.0 - dis)
-                        mm = ti.Vector([0, 0, 0])
-                        if dis[0] <= dis[1] and dis[0] < dis[2]:
-                            mm[0] = 1
-                        elif dis[1] <= dis[0] and dis[1] <= dis[2]:
-                            mm[1] = 1
-                        else:
-                            mm[2] = 1
-                        normal = -mm * rsign
-                        running = 0
-                    else:
-                        # Move beyond the hit boundary
-                        pos = eye_pos + d * (far + eps)
-                        # No point going over the top lods
-                        current_lod = min(max(0, self.n_lods - 1), current_lod + 1)
+                    # Move beyond the hit boundary
+                    pos = eye_pos + d * (far + eps)
+                    voxel_pos = self.voxel_inv_dx * pos
+                    # No point going over the top lods
+                    current_lod = min(max(0, self.n_lods - 2), current_lod + 1)
                 
                 iters += 1
+
+            if hit_distance < inf:
+                c, hit_light = self.voxel_surface_color(pos)
+                dis = ti.math.fract(voxel_pos)
+                dis = min(dis, 1.0 - dis)
+                mm = ti.Vector([0, 0, 0])
+                if dis[0] <= dis[1] and dis[0] < dis[2]:
+                    mm[0] = 1
+                elif dis[1] <= dis[0] and dis[1] <= dis[2]:
+                    mm[1] = 1
+                else:
+                    mm[2] = 1
+                normal = -mm * rsign
 
         return hit_distance, normal, c, hit_light, voxel_index, iters
 
@@ -381,13 +383,13 @@ class Renderer:
                 depth += 1
                 closest, normal, c, hit_light, iters = self.next_hit(pos, d, t)
                 hit_pos = pos + closest * d
-                if depth == 1:
-                    worst_case_iters = ti.simt.subgroup.reduce_max(iters)
-                    best_case_iters = ti.simt.subgroup.reduce_min(iters)
-                    self.color_buffer[u, v] += ti.Vector([worst_case_iters / 64.0, best_case_iters / 64.0, 0.0])
+                # if depth == 1:
+                #     worst_case_iters = ti.simt.subgroup.reduce_max(iters)
+                #     best_case_iters = ti.simt.subgroup.reduce_min(iters)
+                #     self.color_buffer[u, v] += ti.Vector([worst_case_iters / 64.0, best_case_iters / 64.0, 0.0])
                 if not hit_light and normal.norm() != 0 and closest < 1e8:
                     d = out_dir(normal)
-                    pos = hit_pos + 1e-4 * d
+                    pos = hit_pos + normal * eps
                     throughput *= c
 
                     if ti.static(use_directional_light):
