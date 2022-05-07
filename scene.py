@@ -158,6 +158,7 @@ class Scene:
 
     def finish(self):
         self.renderer.recompute_bbox()
+        self.renderer.update_lods()
         canvas = self.window.get_canvas()
         spp = 1
         while self.window.running:
