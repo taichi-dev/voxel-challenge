@@ -22,8 +22,7 @@ class Renderer:
         self.color_buffer = ti.Vector.field(3, dtype=ti.f32)
         self.bbox = ti.Vector.field(3, dtype=ti.f32, shape=2)
         self.fov = ti.field(dtype=ti.f32, shape=())
-        self.voxel_color = ti.Vector.field(3, dtype=ti.u8)
-        self.voxel_material = ti.field(dtype=ti.i8)
+        self.voxel_data = ti.field(dtype=ti.u32)
 
         self.light_direction = ti.Vector.field(3, dtype=ti.f32, shape=())
         self.light_direction_noise = ti.field(dtype=ti.f32, shape=())
@@ -52,8 +51,7 @@ class Renderer:
 
         ti.root.dense(ti.ij, image_res).place(self.color_buffer)
         ti.root.dense(ti.ijk,
-                      self.voxel_grid_res).place(self.voxel_color,
-                                                 self.voxel_material,
+                      self.voxel_grid_res).place(self.voxel_data,
                                                  offset=voxel_grid_offset)
 
         self.n_lods = int(math.log2(self.voxel_grid_res))
@@ -102,7 +100,7 @@ class Renderer:
     def query_occupancy(self, ipos, lod):
         ret = False
         if lod == 0:
-            ret = self.voxel_material[ipos] != ti.i8(0)
+            ret = (self.voxel_data[ipos] >> 24) != 0
         else:
             idx = self.linearize_index(ipos, lod)
             ret = (self.occupancy[idx >> 5] & (1 << (idx & 31))) != 0
@@ -111,11 +109,11 @@ class Renderer:
     @ti.func
     def query_density(self, ipos):
         inside = self.inside_grid(ipos)
-        ret = 0.0
+        ret = 0
         if inside:
-            ret = self.voxel_material[ipos]
+            ret = self.voxel_data[ipos] >> 24
         else:
-            ret = 0.0
+            ret = 0
         return ret
 
     @ti.func
@@ -123,6 +121,22 @@ class Renderer:
         p = pos * self.voxel_inv_dx
         voxel_index = ti.floor(p).cast(ti.i32)
         return voxel_index
+
+    @staticmethod
+    @ti.func
+    def decode_data(data : ti.u32):
+        v = ti.Vector([data & 0xFF, (data >> 8) & 0xFF, (data >> 16) & 0xFF, data >> 24])
+        return v.rgb, v.a
+
+    @staticmethod
+    @ti.func
+    def encode_data(color, material):
+        c = ti.cast(color, ti.u32)
+        m = ti.cast(material, ti.u32)
+        return ((m   & 0xFF) << 24) | \
+               ((c.b & 0xFF) << 16) | \
+               ((c.g & 0xFF) <<  8) | \
+               ((c.r & 0xFF)      )
 
     @ti.func
     def voxel_surface_color(self, pos):
@@ -143,8 +157,9 @@ class Renderer:
         voxel_color = ti.Vector([0.0, 0.0, 0.0])
         is_light = 0
         if self.inside_particle_grid(voxel_index):
-            voxel_color = self.voxel_color[voxel_index] * (1.0 / 255)
-            if self.voxel_material[voxel_index] == 2:
+            voxel_color, voxel_material = self.decode_data(self.voxel_data[voxel_index])
+            voxel_color *= 1.0 / 255.0
+            if voxel_material == 2:
                 is_light = 1
 
         return voxel_color * (1.3 - 1.2 * f), is_light
@@ -454,8 +469,8 @@ class Renderer:
         for d in ti.static(range(3)):
             self.bbox[0][d] = 1e9
             self.bbox[1][d] = -1e9
-        for I in ti.grouped(self.voxel_material):
-            if self.voxel_material[I] != 0:
+        for I in ti.grouped(self.voxel_data):
+            if (self.voxel_data[I] >> 24) != 0:
                 for d in ti.static(range(3)):
                     ti.atomic_min(self.bbox[0][d], (I[d] - 1) * self.voxel_dx)
                     ti.atomic_max(self.bbox[1][d], (I[d] + 2) * self.voxel_dx)
@@ -491,11 +506,9 @@ class Renderer:
 
     @ti.func
     def set_voxel(self, idx, mat, color):
-        self.voxel_material[idx] = ti.cast(mat, ti.i8)
-        self.voxel_color[idx] = self.to_vec3u(color)
+        self.voxel_data[idx] = self.encode_data(color * 255.0, mat)
 
     @ti.func
     def get_voxel(self, ijk):
-        mat = self.voxel_material[ijk]
-        color = self.voxel_color[ijk]
+        color, mat = self.decode_data(self.voxel_data[ijk])
         return mat, self.to_vec3(color)
