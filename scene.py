@@ -161,6 +161,8 @@ class Scene:
         self.renderer.update_lods()
         canvas = self.window.get_canvas()
         spp = 1
+        samples = 0
+        initial_t = time.time()
         while self.window.running:
             should_reset_framebuffer = False
 
@@ -174,8 +176,8 @@ class Scene:
                 self.renderer.reset_framebuffer()
 
             t = time.time()
-            for _ in range(spp):
-                self.renderer.accumulate()
+            self.renderer.accumulate(spp)
+            samples += spp
             img = self.renderer.fetch_image()
             if self.window.is_pressed('p'):
                 timestamp = datetime.today().strftime('%Y-%m-%d-%H%M%S')
@@ -191,4 +193,8 @@ class Scene:
                 spp = max(spp, 1)
             else:
                 spp += 1
+            if samples > 1024:
+                print("1024 samples took", time.time() - initial_t)
+                samples = 0
+                initial_t = time.time()
             self.window.show()
