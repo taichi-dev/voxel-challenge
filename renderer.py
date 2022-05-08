@@ -22,7 +22,7 @@ class Renderer:
         self.color_buffer = ti.Vector.field(3, dtype=ti.f32)
         self.bbox = ti.Vector.field(3, dtype=ti.f32, shape=2)
         self.fov = ti.field(dtype=ti.f32, shape=())
-        self.voxel_data = ti.field(dtype=ti.u32)
+        self.voxel_data = ti.field(dtype=ti.i32)
 
         self.light_direction = ti.Vector.field(3, dtype=ti.f32, shape=())
         self.light_direction_noise = ti.field(dtype=ti.f32, shape=())
@@ -132,19 +132,16 @@ class Renderer:
 
     @staticmethod
     @ti.func
-    def decode_data(data : ti.u32):
+    def decode_data(data : ti.i32):
         v = ti.Vector([data & 0xFF, (data >> 8) & 0xFF, (data >> 16) & 0xFF, data >> 24])
         return v.rgb, v.a
 
     @staticmethod
     @ti.func
     def encode_data(color, material):
-        c = ti.cast(color, ti.u32)
-        m = ti.cast(material, ti.u32)
-        return ((m   & 0xFF) << 24) | \
-               ((c.b & 0xFF) << 16) | \
-               ((c.g & 0xFF) <<  8) | \
-               ((c.r & 0xFF)      )
+        c = ti.math.clamp(ti.cast(color, ti.i32), 0, 255)
+        m = ti.math.clamp(ti.cast(material, ti.i32), 0, 255)
+        return (m << 24) | (c.b << 16) | (c.g << 8) | c.r
 
     @ti.func
     def voxel_surface_color(self, pos):
