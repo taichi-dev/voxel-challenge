@@ -87,24 +87,32 @@ class Renderer:
     def linearize_index(self, ipos, lod):
         base_idx = 0
         if lod > 1:
-            for l in range(lod - 1):
-                lod_res = self.voxel_grid_res >> (l + 1)
-                base_idx += lod_res * lod_res * lod_res
-        # TODO: More efficient encoding
+            n = self.voxel_grid_res >> 1
+            n = n * n * n
+            #    Given the result must be integer
+            #    And b >= 2, then
+            #    n * sum(1..b, (0.5 ** b))
+            # => n * (1 - 0.5 ** (b+1)) / 0.5
+            # => (2.0 * n) * (1.0 - 0.5 ** (b+1))
+            # => 2.0 * n - 2.0 * n * (0.5 ** (b+1))
+            # => 2.0 * n - n / (2 ** b)
+            # => (n << 1) - (n >> b)
+            base_idx = (n << 1) - (n >> (lod - 2))
         lod_res = self.voxel_grid_res >> lod
         voxel_pos = ipos + (lod_res >> 1)
-        base_idx += voxel_pos.z * lod_res * lod_res + voxel_pos.y * lod_res + voxel_pos.x
+        # We are not memory bound here, no need to use morton code
+        base_idx += voxel_pos.z * (lod_res * lod_res) + voxel_pos.y * lod_res + voxel_pos.x
         return base_idx
 
     @ti.func
     def query_occupancy(self, ipos, lod):
-        ret = False
+        ret = 0
         if lod == 0:
-            ret = (self.voxel_data[ipos] >> 24) != 0
+            ret = (self.voxel_data[ipos] >> 24)
         else:
             idx = self.linearize_index(ipos, lod)
-            ret = (self.occupancy[idx >> 5] & (1 << (idx & 31))) != 0
-        return ret
+            ret = (self.occupancy[idx >> 5] & (1 << (idx & 31)))
+        return ret != 0
 
     @ti.func
     def query_density(self, ipos):
@@ -194,9 +202,10 @@ class Renderer:
 
         iters = 0
 
-        bbox_min = self.bbox[0]
-        bbox_max = self.bbox[1]
-        inter, scene_near, scene_far = ray_aabb_intersection(bbox_min, bbox_max, eye_pos,
+        bbox_min = self.voxel_inv_dx * self.bbox[0]
+        bbox_max = self.voxel_inv_dx * self.bbox[1]
+        eye_pos_scaled = self.voxel_inv_dx * eye_pos
+        inter, scene_near, scene_far = ray_aabb_intersection(bbox_min, bbox_max, eye_pos_scaled,
                                                  d)
         hit_distance = inf
         hit_light = 0
@@ -206,75 +215,43 @@ class Renderer:
         if inter:
             current_lod = 0
 
-            near = max(0, scene_near)
+            voxel_pos = eye_pos_scaled + d * max(0, scene_near + 5.0 * eps)
+            ipos_lod0 = ti.cast(ti.floor(voxel_pos), ti.i32)
 
-            pos = eye_pos + d * (near + 5 * eps)
-
-            # o = self.voxel_inv_dx * pos
-            # ipos = int(ti.floor(o))
-            # dis = (ipos - o + 0.5 + rsign * 0.5) * rinv
-            # running = 1
-            # hit_pos = ti.Vector([0.0, 0.0, 0.0])
-            # while running:
-            #     last_sample = int(self.query_density(ipos))
-            #     if not self.inside_particle_grid(ipos):
-            #         running = 0
-
-            #     if last_sample:
-            #         mini = (ipos - o + ti.Vector([0.5, 0.5, 0.5]) -
-            #                 rsign * 0.5) * rinv
-            #         hit_distance = mini.max() * self.voxel_dx + near
-            #         hit_pos = eye_pos + (hit_distance + 1e-3) * d
-            #         voxel_index = self._to_voxel_index(hit_pos)
-            #         c, hit_light = self.voxel_surface_color(hit_pos)
-            #         running = 0
-            #     else:
-            #         mm = ti.Vector([0, 0, 0])
-            #         if dis[0] <= dis[1] and dis[0] < dis[2]:
-            #             mm[0] = 1
-            #         elif dis[1] <= dis[0] and dis[1] <= dis[2]:
-            #             mm[1] = 1
-            #         else:
-            #             mm[2] = 1
-            #         dis += mm * rsign * rinv
-            #         ipos += mm * rsign
-            #         normal = -mm * rsign
-            #     iters += 1
-
-            voxel_pos = self.voxel_inv_dx * pos
-
-            while iters < 512:
-                ipos = ti.cast(ti.floor(voxel_pos), ti.i32) >> current_lod
+            while iters < 512:                
+                ipos = ipos_lod0 >> current_lod
                 sample = self.query_occupancy(ipos, current_lod)
                 while sample and current_lod > 0:
                     # If we hit something, traverse down the LODs
                     # Until we reach LOD 0 or reach a empty cell
                     current_lod = current_lod - 1
-                    ipos = ti.cast(ti.floor(voxel_pos), ti.i32) >> current_lod
+                    ipos = ipos_lod0 >> current_lod
                     sample = self.query_occupancy(ipos, current_lod)
 
-                voxel_min = ti.cast(ipos << current_lod, ti.f32)
-                voxel_max = ti.cast((ipos + 1) << current_lod, ti.f32)
-                it, near, far = ray_aabb_intersection(voxel_min * self.voxel_dx, voxel_max * self.voxel_dx, eye_pos, d)
+                lod_size = ti.cast(1 << current_lod, ti.f32)
+                cell_base = ti.cast(ipos << current_lod, ti.f32)
+                it, near, far = ray_aabb_intersection(ti.math.vec3(0.0), ti.math.vec3(lod_size), eye_pos_scaled - cell_base, d)
 
                 if near > scene_far:
                     break
 
-                if sample:
+                if sample and it:
                     # If at LOD = 0, we get a voxel hit
-                    hit_distance = near
+                    hit_distance = self.voxel_dx * near
                     voxel_index = ipos
                     break
                 else:
                     # Move beyond the hit boundary
-                    pos = eye_pos + d * (far + eps)
-                    voxel_pos = self.voxel_inv_dx * pos
+                    voxel_pos = eye_pos_scaled + d * (far + 10.0 * eps)
+                    # Snap to cloest grid boundary
+                    ipos_lod0 = ti.cast(ti.floor(voxel_pos), ti.i32)
                     # No point going over the top lods
                     current_lod = min(max(0, self.n_lods - 2), current_lod + 1)
                 
                 iters += 1
 
             if hit_distance < inf:
+                pos = self.voxel_dx * voxel_pos
                 c, hit_light = self.voxel_surface_color(pos)
                 dis = ti.math.fract(voxel_pos)
                 dis = min(dis, 1.0 - dis)
