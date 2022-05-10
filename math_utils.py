@@ -8,7 +8,7 @@ inf = 1e10
 
 @ti.func
 def out_dir(n):
-    # Keller, 2019. Ray Tracing Gems, p240
+    # Shirley, et al, 2019. Sampling Transformation Zoo. Chapter 16, Ray Tracing Gems, p240
     u = ti.Vector([ti.random(), ti.random()])
     a = 1.0 - 2.0 * u[0]
     b = ti.sqrt(1.0 - a * a)
@@ -30,8 +30,6 @@ def morton(p):
 
 @ti.func
 def ray_aabb_intersection(box_min, box_max, o, d):
-    intersect = 1
-
     near_int = -inf
     far_int = inf
 
@@ -49,8 +47,7 @@ def ray_aabb_intersection(box_min, box_max, o, d):
             far_int = ti.min(new_far_int, far_int)
             near_int = ti.max(new_near_int, near_int)
 
-    if near_int > far_int:
-        intersect = 0
+    intersect = near_int <= far_int
     return intersect, near_int, far_int
 
 
