@@ -22,7 +22,8 @@ class Renderer:
         self.color_buffer = ti.Vector.field(3, dtype=ti.f32)
         self.bbox = ti.Vector.field(3, dtype=ti.f32, shape=2)
         self.fov = ti.field(dtype=ti.f32, shape=())
-        self.voxel_data = ti.field(dtype=ti.i32)
+        self.voxel_color = ti.Vector.field(3, dtype=ti.u8)
+        self.voxel_material = ti.field(dtype=ti.i8)
 
         self.light_direction = ti.Vector.field(3, dtype=ti.f32, shape=())
         self.light_direction_noise = ti.field(dtype=ti.f32, shape=())
@@ -51,12 +52,16 @@ class Renderer:
 
         ti.root.dense(ti.ij, image_res).place(self.color_buffer)
         ti.root.dense(ti.ijk,
-                      self.voxel_grid_res).place(self.voxel_data,
+                      self.voxel_grid_res).place(self.voxel_color,
+                                                 self.voxel_material,
                                                  offset=voxel_grid_offset)
+
+        shape = (self.voxel_grid_res, self.voxel_grid_res, self.voxel_grid_res)
+        self.voxel_color_texture = ti.Texture(ti.u8, 4, shape)
 
         self.n_lods = int(math.log2(self.voxel_grid_res))
         lod_map_size = 0
-        for i in range(1, self.n_lods):
+        for i in range(self.n_lods):
             lod_res = self.voxel_grid_res >> i
             lod_map_size += lod_res * lod_res * lod_res
         self.occupancy = ti.field(dtype=ti.i32, shape=((lod_map_size // 32) + 1))
@@ -86,18 +91,18 @@ class Renderer:
     @ti.func
     def linearize_index(self, ipos, lod):
         base_idx = 0
-        if lod > 1:
-            n = self.voxel_grid_res >> 1
+        if lod > 0:
+            n = self.voxel_grid_res
             n = n * n * n
             #    Given the result must be integer
-            #    And b >= 2, then
-            #    n * sum(1..b, (0.5 ** b))
-            # => n * (1 - 0.5 ** (b+1)) / 0.5
+            #    And b >= 1, then
+            #    n * sum(0..b, (0.5 ** b))
+            # => n * (1 - 0.5 ** b) / 0.5
             # => (2.0 * n) * (1.0 - 0.5 ** (b+1))
             # => 2.0 * n - 2.0 * n * (0.5 ** (b+1))
             # => 2.0 * n - n / (2 ** b)
             # => (n << 1) - (n >> b)
-            base_idx = (n << 1) - (n >> (lod - 2))
+            base_idx = (n << 1) - (n >> (lod - 1))
         lod_res = self.voxel_grid_res >> lod
         voxel_pos = ipos + (lod_res >> 1)
         # We are not memory bound here, no need to use morton code
@@ -107,11 +112,8 @@ class Renderer:
     @ti.func
     def query_occupancy(self, ipos, lod):
         ret = 0
-        if lod == 0:
-            ret = (self.voxel_data[ipos] >> 24)
-        else:
-            idx = self.linearize_index(ipos, lod)
-            ret = (self.occupancy[idx >> 5] & (1 << (idx & 31)))
+        idx = self.linearize_index(ipos, lod)
+        ret = (self.occupancy[idx >> 5] & (1 << (idx & 31)))
         return ret != 0
 
     @ti.func
@@ -119,7 +121,7 @@ class Renderer:
         inside = self.inside_grid(ipos)
         ret = 0
         if inside:
-            ret = self.voxel_data[ipos] >> 24
+            ret = self.voxel_material[ipos]
         else:
             ret = 0
         return ret
@@ -130,21 +132,8 @@ class Renderer:
         voxel_index = ti.floor(p).cast(ti.i32)
         return voxel_index
 
-    @staticmethod
     @ti.func
-    def decode_data(data : ti.i32):
-        v = ti.Vector([data & 0xFF, (data >> 8) & 0xFF, (data >> 16) & 0xFF, data >> 24])
-        return v.rgb, v.a
-
-    @staticmethod
-    @ti.func
-    def encode_data(color, material):
-        c = ti.math.clamp(ti.cast(color, ti.i32), 0, 255)
-        m = ti.math.clamp(ti.cast(material, ti.i32), 0, 255)
-        return (m << 24) | (c.b << 16) | (c.g << 8) | c.r
-
-    @ti.func
-    def voxel_surface_color(self, pos):
+    def voxel_surface_color(self, pos, colors : ti.template()):
         p = pos * self.voxel_inv_dx
         p -= ti.floor(p)
         voxel_index = self._to_voxel_index(pos)
@@ -162,8 +151,10 @@ class Renderer:
         voxel_color = ti.Vector([0.0, 0.0, 0.0])
         is_light = 0
         if self.inside_particle_grid(voxel_index):
-            voxel_color, voxel_material = self.decode_data(self.voxel_data[voxel_index])
-            voxel_color *= 1.0 / 255.0
+            half_res = ti.Vector([self.voxel_grid_res, self.voxel_grid_res, self.voxel_grid_res]) >> 1
+            data = colors.fetch((voxel_index + half_res).zyx, 0)
+            voxel_color = data.rgb
+            voxel_material = ti.cast(data.a * 255.0, ti.i32)
             if voxel_material == 2:
                 is_light = 1
 
@@ -185,7 +176,7 @@ class Renderer:
         return self.floor_color[None]
 
     @ti.func
-    def dda_voxel(self, eye_pos, d):
+    def dda_voxel(self, eye_pos, d, colors : ti.template()):
         for i in ti.static(range(3)):
             if abs(d[i]) < 1e-6:
                 d[i] = 1e-6
@@ -249,7 +240,7 @@ class Renderer:
 
             if hit_distance < inf:
                 pos = self.voxel_dx * voxel_pos
-                c, hit_light = self.voxel_surface_color(pos)
+                c, hit_light = self.voxel_surface_color(pos, colors)
                 dis = ti.math.fract(voxel_pos)
                 dis = min(dis, 1.0 - dis)
                 mm = ti.Vector([0, 0, 0])
@@ -271,12 +262,12 @@ class Renderer:
                 1] and self.bbox[0][2] <= pos[2] and pos[2] < self.bbox[1][2]
 
     @ti.func
-    def next_hit(self, pos, d, t):
+    def next_hit(self, pos, d, t, colors : ti.template()):
         closest = inf
         normal = ti.Vector([0.0, 0.0, 0.0])
         c = ti.Vector([0.0, 0.0, 0.0])
         hit_light = 0
-        closest, normal, c, hit_light, vx_idx, iters = self.dda_voxel(pos, d)
+        closest, normal, c, hit_light, vx_idx, iters = self.dda_voxel(pos, d, colors)
 
         ray_march_dist = self.ray_march(pos, d)
         if ray_march_dist < DIS_LIMIT and ray_march_dist < closest:
@@ -322,8 +313,23 @@ class Renderer:
         d = (d + fu * du + fv * dv).normalized()
         return d
 
+    # @ti.kernel
+    # def _make_texture(self, ndarr : ti.types.ndarray(field_dim=3, element_dim=1)):
+    #     shape = ti.Vector([self.voxel_grid_res, self.voxel_grid_res, self.voxel_grid_res])
+    #     for ijk in ti.grouped(self.voxel_color):
+    #         color = self.voxel_color[ijk]
+    #         material = self.voxel_material[ijk]
+    #         ndarr[ijk.zyx + (shape >> 1)] = ti.Vector([color.r, color.g, color.b, material])
+
     @ti.kernel
-    def update_lods(self):
+    def _update_lods(self):
+        # Generate LOD 0
+        half_size = self.voxel_grid_res >> 1
+        for i, j, k in ti.ndrange((-half_size, half_size), (-half_size, half_size), (-half_size, half_size)):
+            if self.query_density(ti.Vector([i, j, k])) > 0:
+                idx = self.linearize_index(ti.Vector([i, j, k]), 0)
+                bit = 1 << (idx & 31)
+                ti.atomic_or(self.occupancy[idx >> 5], bit)
         # Generate LOD 1~N
         for ll in ti.static(range(self.n_lods - 1)):
             lod = ll + 1
@@ -336,6 +342,14 @@ class Renderer:
                     idx = self.linearize_index(ti.Vector([i, j, k]), lod)
                     bit = 1 << (idx & 31)
                     ti.atomic_or(self.occupancy[idx >> 5], bit)
+    
+    def prepare_data(self):
+        shape = (self.voxel_grid_res, self.voxel_grid_res, self.voxel_grid_res)
+        # voxel_color_ndarray = ti.Vector.ndarray(4, ti.u8, shape=shape)
+        # self._make_texture(voxel_color_ndarray)
+        # self.voxel_color_texture.from_ndarray(voxel_color_ndarray)
+        self.voxel_color_texture.from_field(self.voxel_color)
+        self._update_lods()
 
     @ti.func
     def generate_new_sample(self, u : ti.f32, v : ti.f32):
@@ -354,7 +368,7 @@ class Renderer:
         return d, pos, t, contrib, throughput, c, depth, hit_light, hit_background
 
     @ti.kernel
-    def render(self, n_spp : ti.i32):
+    def render(self, n_spp : ti.i32, colors : ti.types.texture(3)):
         # Render
         ti.loop_config(block_dim=64)
         for u, v in self.color_buffer:
@@ -367,7 +381,7 @@ class Renderer:
                 sample_complete = False
 
                 depth += 1
-                closest, normal, c, hit_light, iters = self.next_hit(pos, d, t)
+                closest, normal, c, hit_light, iters = self.next_hit(pos, d, t, colors)
                 hit_pos = pos + closest * d
                 # if depth == 1:
                 #     worst_case_iters = ti.simt.subgroup.reduce_max(iters)
@@ -390,7 +404,7 @@ class Renderer:
                         if dot > 0:
                             hit_light_ = 0
                             dist, _, _, hit_light_, iters = self.next_hit(
-                                pos, light_dir, t)
+                                pos, light_dir, t, colors)
                             if dist > DIS_LIMIT:
                                 # far enough to hit directional light
                                 contrib += throughput * \
@@ -443,8 +457,8 @@ class Renderer:
         for d in ti.static(range(3)):
             self.bbox[0][d] = 1e9
             self.bbox[1][d] = -1e9
-        for I in ti.grouped(self.voxel_data):
-            if (self.voxel_data[I] >> 24) != 0:
+        for I in ti.grouped(self.voxel_material):
+            if self.voxel_material[I] != 0:
                 for d in ti.static(range(3)):
                     ti.atomic_min(self.bbox[0][d], (I[d] - 1) * self.voxel_dx)
                     ti.atomic_max(self.bbox[1][d], (I[d] + 2) * self.voxel_dx)
@@ -454,7 +468,7 @@ class Renderer:
         self.color_buffer.fill(0)
 
     def accumulate(self, n_spp):
-        self.render(n_spp)
+        self.render(n_spp, self.voxel_color_texture)
         self.current_spp += n_spp
 
     def fetch_image(self):
@@ -480,9 +494,11 @@ class Renderer:
 
     @ti.func
     def set_voxel(self, idx, mat, color):
-        self.voxel_data[idx] = self.encode_data(color * 255.0, mat)
+        self.voxel_material[idx] = ti.cast(mat, ti.i8)
+        self.voxel_color[idx] = self.to_vec3u(color)
 
     @ti.func
     def get_voxel(self, ijk):
-        color, mat = self.decode_data(self.voxel_data[ijk])
+        mat = self.voxel_material[ijk]
+        color = self.voxel_color[ijk]
         return mat, self.to_vec3(color)
