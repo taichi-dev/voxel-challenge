@@ -25,11 +25,11 @@ def create_ocean_base(pos, size, color):
 @ti.func
 def create_wave(pos, radius, color, portion, flipped):
     for I in ti.grouped(ti.ndrange((-radius, radius), (-radius, radius), (-radius, radius))):
-        uv = vec2(I[0], I[1]) / radius
+        uv = I.xy / radius
         theta = ti.atan2(uv[1], uv[0]) / 3.14 * 2
         offset = I
         offset[0] *=  1 - flipped * 2        
-        if theta >= 0 and theta <= portion:
+        if theta >= 0 and theta < portion:
             if abs(uv.norm() - 0.95) < 0.05 + 0.05 *ti.random():
                 if 1 - ti.random()**2 < theta / portion - 0.1:
                     scene.set_voxel(pos + offset, foam_material, foam_color)
