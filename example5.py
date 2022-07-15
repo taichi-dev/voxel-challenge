@@ -25,7 +25,8 @@ def get_emmit_color(r):
 
 @ti.func
 def make_tiny_cloud(pos, s, r1, r2, density, grayVal):
-    for i, j, k in ti.ndrange((-r2*s[0], r2*s[0]), (-r2*s[1], r2*s[1]), (-r2*s[2], r2*s[2])):
+    u = [int(r2 * x) for x in s]
+    for i, j, k in ti.ndrange((-u[0], u[0]), (-u[1], u[1]), (-u[2], u[2])):
         x = vec3(i/s[0], j/s[1], k/s[2])
         if x.dot(x) < r1 + (r2-r1) * (ti.random()) and ti.random() < density:
             scene.set_voxel(
@@ -39,7 +40,7 @@ def make_cloud_city(base, n):
         i3 = ti.Vector([i, j])
         dis = ti.pow(ti.max(0, 1 - ti.math.distance(i3, center)/n) * 1.1, 3)
         height = (ti.random() * n * dis * 1)
-        for k in ti.ndrange((-height*.6+base, height*1.2+base)):
+        for k in ti.ndrange((int(-height*.6+base), int(height*1.2+base))):
             if k > base and dis*.1 > ti.random():
                 scene.set_voxel(vec3(i, k, j), 2, get_emmit_color(ti.random()))
             else:
