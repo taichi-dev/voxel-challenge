@@ -313,13 +313,16 @@ class Renderer:
         d = (d + fu * du + fv * dv).normalized()
         return d
 
-    # @ti.kernel
-    # def _make_texture(self, ndarr : ti.types.ndarray(field_dim=3, element_dim=1)):
-    #     shape = ti.Vector([self.voxel_grid_res, self.voxel_grid_res, self.voxel_grid_res])
-    #     for ijk in ti.grouped(self.voxel_color):
-    #         color = self.voxel_color[ijk]
-    #         material = self.voxel_material[ijk]
-    #         ndarr[ijk.zyx + (shape >> 1)] = ti.Vector([color.r, color.g, color.b, material])
+    @ti.kernel
+    def _make_texture(self, colors : ti.types.rw_texture(num_dimensions=3,
+                                                         num_channels=4,
+                                                         channel_format=ti.u8,
+                                                         lod=0)):
+        for ijk in ti.grouped(self.voxel_color):
+            color = ti.cast(self.voxel_color[ijk], ti.f32) / 255.0
+            material = ti.cast(self.voxel_material[ijk], ti.f32) / 255.0
+            half_res = ti.Vector([self.voxel_grid_res, self.voxel_grid_res, self.voxel_grid_res]) >> 1
+            colors.store(ijk.zyx + half_res, ti.Vector([color[0], color[1], color[2], material]))
 
     @ti.kernel
     def _update_lods(self):
@@ -346,9 +349,9 @@ class Renderer:
     def prepare_data(self):
         shape = (self.voxel_grid_res, self.voxel_grid_res, self.voxel_grid_res)
         # voxel_color_ndarray = ti.Vector.ndarray(4, ti.u8, shape=shape)
-        # self._make_texture(voxel_color_ndarray)
+        self._make_texture(self.voxel_color_texture)
         # self.voxel_color_texture.from_ndarray(voxel_color_ndarray)
-        self.voxel_color_texture.from_field(self.voxel_color)
+        # self.voxel_color_texture.from_field(self.voxel_color)
         self._update_lods()
 
     @ti.func
