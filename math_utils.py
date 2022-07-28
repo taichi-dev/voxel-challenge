@@ -8,21 +8,28 @@ inf = 1e10
 
 @ti.func
 def out_dir(n):
-    u = ti.Vector([1.0, 0.0, 0.0])
-    if ti.abs(n[1]) < 1 - 1e-3:
-        u = n.cross(ti.Vector([0.0, 1.0, 0.0])).normalized()
-    v = n.cross(u)
-    phi = 2 * math.pi * ti.random(ti.f32)
-    r = ti.random(ti.f32)
-    ay = ti.sqrt(r)
-    ax = ti.sqrt(1 - r)
-    return ax * (ti.cos(phi) * u + ti.sin(phi) * v) + ay * n
+    # Shirley, et al, 2019. Sampling Transformation Zoo. Chapter 16, Ray Tracing Gems, p240
+    u = ti.Vector([ti.random(), ti.random()])
+    a = 1.0 - 2.0 * u[0]
+    b = ti.sqrt(1.0 - a * a)
+    phi = 2.0 * np.pi * u[1]
+    return ti.Vector([n.x + b * ti.cos(phi), n.y + a, n.z + b * ti.sin(phi)])
 
+@ti.func
+def interleave_bits_z3(v : ti.u32):
+    # https://stackoverflow.com/questions/1024754/how-to-compute-a-3d-morton-number-interleave-the-bits-of-3-ints
+    x = (v | (v << 16)) & 0x030000FF
+    x = (x | (x <<  8)) & 0x0300F00F
+    x = (x | (x <<  4)) & 0x030C30C3
+    x = (x | (x <<  2)) & 0x09249249
+    return x
+
+@ti.func
+def morton(p):
+    return interleave_bits_z3(p.x) | (interleave_bits_z3(p.y) << 1) | (interleave_bits_z3(p.z) << 2)
 
 @ti.func
 def ray_aabb_intersection(box_min, box_max, o, d):
-    intersect = 1
-
     near_int = -inf
     far_int = inf
 
@@ -40,8 +47,7 @@ def ray_aabb_intersection(box_min, box_max, o, d):
             far_int = ti.min(new_far_int, far_int)
             near_int = ti.max(new_near_int, near_int)
 
-    if near_int > far_int:
-        intersect = 0
+    intersect = near_int <= far_int
     return intersect, near_int, far_int
 
 
