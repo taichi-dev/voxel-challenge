@@ -348,10 +348,7 @@ class Renderer:
     
     def prepare_data(self):
         shape = (self.voxel_grid_res, self.voxel_grid_res, self.voxel_grid_res)
-        # voxel_color_ndarray = ti.Vector.ndarray(4, ti.u8, shape=shape)
         self._make_texture(self.voxel_color_texture)
-        # self.voxel_color_texture.from_ndarray(voxel_color_ndarray)
-        # self.voxel_color_texture.from_field(self.voxel_color)
         self._update_lods()
 
     @ti.func
