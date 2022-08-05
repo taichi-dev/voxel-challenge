@@ -1,3 +1,4 @@
+import math
 import taichi as ti
 
 from math_utils import (eps, inf, out_dir, ray_aabb_intersection)
@@ -55,6 +56,16 @@ class Renderer:
                                                  self.voxel_material,
                                                  offset=voxel_grid_offset)
 
+        shape = (self.voxel_grid_res, self.voxel_grid_res, self.voxel_grid_res)
+        self.voxel_color_texture = ti.Texture(ti.u8, 4, shape)
+
+        self.n_lods = int(math.log2(self.voxel_grid_res))
+        lod_map_size = 0
+        for i in range(self.n_lods):
+            lod_res = self.voxel_grid_res >> i
+            lod_map_size += lod_res * lod_res * lod_res
+        self.occupancy = ti.field(dtype=ti.i32, shape=((lod_map_size // 32) + 1))
+
         self._rendered_image = ti.Vector.field(3, float, image_res)
         self.set_up(*up)
         self.set_fov(0.23)
@@ -78,13 +89,41 @@ class Renderer:
         ) < self.voxel_grid_res // 2
 
     @ti.func
+    def linearize_index(self, ipos, lod):
+        base_idx = 0
+        if lod > 0:
+            n = self.voxel_grid_res
+            n = n * n * n
+            #    Given the result must be integer
+            #    And b >= 1, then
+            #    n * sum(0..b, (0.5 ** b))
+            # => n * (1 - 0.5 ** b) / 0.5
+            # => (2.0 * n) * (1.0 - 0.5 ** (b+1))
+            # => 2.0 * n - 2.0 * n * (0.5 ** (b+1))
+            # => 2.0 * n - n / (2 ** b)
+            # => (n << 1) - (n >> b)
+            base_idx = (n << 1) - (n >> (lod - 1))
+        lod_res = self.voxel_grid_res >> lod
+        voxel_pos = ipos + (lod_res >> 1)
+        # We are not memory bound here, no need to use morton code
+        base_idx += voxel_pos.z * (lod_res * lod_res) + voxel_pos.y * lod_res + voxel_pos.x
+        return base_idx
+
+    @ti.func
+    def query_occupancy(self, ipos, lod):
+        ret = 0
+        idx = self.linearize_index(ipos, lod)
+        ret = (self.occupancy[idx >> 5] & (1 << (idx & 31)))
+        return ret != 0
+
+    @ti.func
     def query_density(self, ipos):
         inside = self.inside_grid(ipos)
-        ret = 0.0
+        ret = 0
         if inside:
             ret = self.voxel_material[ipos]
         else:
-            ret = 0.0
+            ret = 0
         return ret
 
     @ti.func
@@ -94,7 +133,7 @@ class Renderer:
         return voxel_index
 
     @ti.func
-    def voxel_surface_color(self, pos):
+    def voxel_surface_color(self, pos, colors : ti.template()):
         p = pos * self.voxel_inv_dx
         p -= ti.floor(p)
         voxel_index = self._to_voxel_index(pos)
@@ -112,8 +151,11 @@ class Renderer:
         voxel_color = ti.Vector([0.0, 0.0, 0.0])
         is_light = 0
         if self.inside_particle_grid(voxel_index):
-            voxel_color = self.voxel_color[voxel_index] * (1.0 / 255)
-            if self.voxel_material[voxel_index] == 2:
+            half_res = ti.Vector([self.voxel_grid_res, self.voxel_grid_res, self.voxel_grid_res]) >> 1
+            data = colors.fetch((voxel_index + half_res).zyx, 0)
+            voxel_color = data.rgb
+            voxel_material = ti.cast(data.a * 255.0, ti.i32)
+            if voxel_material == 2:
                 is_light = 1
 
         return voxel_color * (1.3 - 1.2 * f), is_light
@@ -134,7 +176,7 @@ class Renderer:
         return self.floor_color[None]
 
     @ti.func
-    def dda_voxel(self, eye_pos, d):
+    def dda_voxel(self, eye_pos, d, colors : ti.template()):
         for i in ti.static(range(3)):
             if abs(d[i]) < 1e-6:
                 d[i] = 1e-6
@@ -146,9 +188,12 @@ class Renderer:
             else:
                 rsign[i] = -1
 
-        bbox_min = self.bbox[0]
-        bbox_max = self.bbox[1]
-        inter, near, far = ray_aabb_intersection(bbox_min, bbox_max, eye_pos,
+        iters = 0
+
+        bbox_min = self.voxel_inv_dx * self.bbox[0]
+        bbox_max = self.voxel_inv_dx * self.bbox[1]
+        eye_pos_scaled = self.voxel_inv_dx * eye_pos
+        inter, scene_near, scene_far = ray_aabb_intersection(bbox_min, bbox_max, eye_pos_scaled,
                                                  d)
         hit_distance = inf
         hit_light = 0
@@ -156,42 +201,58 @@ class Renderer:
         c = ti.Vector([0.0, 0.0, 0.0])
         voxel_index = ti.Vector([0, 0, 0])
         if inter:
-            near = max(0, near)
+            current_lod = 0
 
-            pos = eye_pos + d * (near + 5 * eps)
+            voxel_pos = eye_pos_scaled + d * max(0, scene_near + 5.0 * eps)
+            ipos_lod0 = ti.cast(ti.floor(voxel_pos), ti.i32)
 
-            o = self.voxel_inv_dx * pos
-            ipos = int(ti.floor(o))
-            dis = (ipos - o + 0.5 + rsign * 0.5) * rinv
-            running = 1
-            i = 0
-            hit_pos = ti.Vector([0.0, 0.0, 0.0])
-            while running:
-                last_sample = int(self.query_density(ipos))
-                if not self.inside_particle_grid(ipos):
-                    running = 0
+            while iters < 512:                
+                ipos = ipos_lod0 >> current_lod
+                sample = self.query_occupancy(ipos, current_lod)
+                while sample and current_lod > 0:
+                    # If we hit something, traverse down the LODs
+                    # Until we reach LOD 0 or reach a empty cell
+                    current_lod = current_lod - 1
+                    ipos = ipos_lod0 >> current_lod
+                    sample = self.query_occupancy(ipos, current_lod)
 
-                if last_sample:
-                    mini = (ipos - o + ti.Vector([0.5, 0.5, 0.5]) -
-                            rsign * 0.5) * rinv
-                    hit_distance = mini.max() * self.voxel_dx + near
-                    hit_pos = eye_pos + (hit_distance + 1e-3) * d
-                    voxel_index = self._to_voxel_index(hit_pos)
-                    c, hit_light = self.voxel_surface_color(hit_pos)
-                    running = 0
+                lod_size = ti.cast(1 << current_lod, ti.f32)
+                cell_base = ti.cast(ipos << current_lod, ti.f32)
+                it, near, far = ray_aabb_intersection(ti.math.vec3(0.0), ti.math.vec3(lod_size), eye_pos_scaled - cell_base, d)
+
+                if near > scene_far:
+                    break
+
+                if sample and it:
+                    # If at LOD = 0, we get a voxel hit
+                    hit_distance = self.voxel_dx * near
+                    voxel_index = ipos
+                    break
                 else:
-                    mm = ti.Vector([0, 0, 0])
-                    if dis[0] <= dis[1] and dis[0] < dis[2]:
-                        mm[0] = 1
-                    elif dis[1] <= dis[0] and dis[1] <= dis[2]:
-                        mm[1] = 1
-                    else:
-                        mm[2] = 1
-                    dis += mm * rsign * rinv
-                    ipos += mm * rsign
-                    normal = -mm * rsign
-                i += 1
-        return hit_distance, normal, c, hit_light, voxel_index
+                    # Move beyond the hit boundary
+                    voxel_pos = eye_pos_scaled + d * (far + 10.0 * eps)
+                    # Snap to cloest grid boundary
+                    ipos_lod0 = ti.cast(ti.floor(voxel_pos), ti.i32)
+                    # No point going over the top lods
+                    current_lod = min(max(0, self.n_lods - 2), current_lod + 1)
+                
+                iters += 1
+
+            if hit_distance < inf:
+                pos = self.voxel_dx * voxel_pos
+                c, hit_light = self.voxel_surface_color(pos, colors)
+                dis = ti.math.fract(voxel_pos)
+                dis = min(dis, 1.0 - dis)
+                mm = ti.Vector([0, 0, 0])
+                if dis[0] <= dis[1] and dis[0] < dis[2]:
+                    mm[0] = 1
+                elif dis[1] <= dis[0] and dis[1] <= dis[2]:
+                    mm[1] = 1
+                else:
+                    mm[2] = 1
+                normal = -mm * rsign
+
+        return hit_distance, normal, c, hit_light, voxel_index, iters
 
     @ti.func
     def inside_particle_grid(self, ipos):
@@ -201,12 +262,12 @@ class Renderer:
                 1] and self.bbox[0][2] <= pos[2] and pos[2] < self.bbox[1][2]
 
     @ti.func
-    def next_hit(self, pos, d, t):
+    def next_hit(self, pos, d, t, colors : ti.template()):
         closest = inf
         normal = ti.Vector([0.0, 0.0, 0.0])
         c = ti.Vector([0.0, 0.0, 0.0])
         hit_light = 0
-        closest, normal, c, hit_light, vx_idx = self.dda_voxel(pos, d)
+        closest, normal, c, hit_light, vx_idx, iters = self.dda_voxel(pos, d, colors)
 
         ray_march_dist = self.ray_march(pos, d)
         if ray_march_dist < DIS_LIMIT and ray_march_dist < closest:
@@ -222,7 +283,7 @@ class Renderer:
                 # For light sources, we actually invert the material to make it
                 # more obvious
                 hit_light = 1 - hit_light
-        return closest, normal, c, hit_light
+        return closest, normal, c, hit_light, iters
 
     @ti.kernel
     def set_camera_pos(self, x: ti.f32, y: ti.f32, z: ti.f32):
@@ -253,29 +314,82 @@ class Renderer:
         return d
 
     @ti.kernel
-    def render(self):
-        ti.loop_config(block_dim=256)
+    def _make_texture(self, colors : ti.types.rw_texture(num_dimensions=3,
+                                                         num_channels=4,
+                                                         channel_format=ti.u8,
+                                                         lod=0)):
+        for ijk in ti.grouped(self.voxel_color):
+            color = ti.cast(self.voxel_color[ijk], ti.f32) / 255.0
+            material = ti.cast(self.voxel_material[ijk], ti.f32) / 255.0
+            half_res = ti.Vector([self.voxel_grid_res, self.voxel_grid_res, self.voxel_grid_res]) >> 1
+            colors.store(ijk.zyx + half_res, ti.Vector([color[0], color[1], color[2], material]))
+
+    @ti.kernel
+    def _update_lods(self):
+        # Generate LOD 0
+        half_size = self.voxel_grid_res >> 1
+        for i, j, k in ti.ndrange((-half_size, half_size), (-half_size, half_size), (-half_size, half_size)):
+            if self.query_density(ti.Vector([i, j, k])) > 0:
+                idx = self.linearize_index(ti.Vector([i, j, k]), 0)
+                bit = 1 << (idx & 31)
+                ti.atomic_or(self.occupancy[idx >> 5], bit)
+        # Generate LOD 1~N
+        for ll in ti.static(range(self.n_lods - 1)):
+            lod = ll + 1
+            half_size = self.voxel_grid_res >> (lod + 1)
+            for i, j, k in ti.ndrange((-half_size, half_size), (-half_size, half_size), (-half_size, half_size)):
+                empty = True
+                for subi, subj, subk in ti.static(ti.ndrange(2, 2, 2)):
+                    empty = empty and (not self.query_occupancy(ti.Vector([i * 2 + subi, j * 2 + subj, k * 2 + subk]), lod - 1))
+                if not empty:
+                    idx = self.linearize_index(ti.Vector([i, j, k]), lod)
+                    bit = 1 << (idx & 31)
+                    ti.atomic_or(self.occupancy[idx >> 5], bit)
+    
+    def prepare_data(self):
+        shape = (self.voxel_grid_res, self.voxel_grid_res, self.voxel_grid_res)
+        self._make_texture(self.voxel_color_texture)
+        self._update_lods()
+
+    @ti.func
+    def generate_new_sample(self, u : ti.f32, v : ti.f32):
+        d = self.get_cast_dir(u, v)
+        pos = self.camera_pos[None]
+        t = 0.0
+
+        contrib = ti.Vector([0.0, 0.0, 0.0])
+        throughput = ti.Vector([1.0, 1.0, 1.0])
+        c = ti.Vector([1.0, 1.0, 1.0])
+
+        depth = 0
+        hit_light = 0
+        hit_background = 0
+
+        return d, pos, t, contrib, throughput, c, depth, hit_light, hit_background
+
+    @ti.kernel
+    def render(self, n_spp : ti.i32, colors : ti.types.texture(3)):
+        # Render
+        ti.loop_config(block_dim=64)
         for u, v in self.color_buffer:
-            d = self.get_cast_dir(u, v)
-            pos = self.camera_pos[None]
-            t = 0.0
+            spp_completed = 0
 
-            contrib = ti.Vector([0.0, 0.0, 0.0])
-            throughput = ti.Vector([1.0, 1.0, 1.0])
-            c = ti.Vector([1.0, 1.0, 1.0])
-
-            depth = 0
-            hit_light = 0
-            hit_background = 0
+            d, pos, t, contrib, throughput, c, depth, hit_light, hit_background = self.generate_new_sample(u, v)
 
             # Tracing begin
-            for bounce in range(MAX_RAY_DEPTH):
+            while spp_completed < n_spp:
+                sample_complete = False
+
                 depth += 1
-                closest, normal, c, hit_light = self.next_hit(pos, d, t)
+                closest, normal, c, hit_light, iters = self.next_hit(pos, d, t, colors)
                 hit_pos = pos + closest * d
+                # if depth == 1:
+                #     worst_case_iters = ti.simt.subgroup.reduce_max(iters)
+                #     best_case_iters = ti.simt.subgroup.reduce_min(iters)
+                #     self.color_buffer[u, v] += ti.Vector([worst_case_iters / 64.0, best_case_iters / 64.0, 0.0])
                 if not hit_light and normal.norm() != 0 and closest < 1e8:
                     d = out_dir(normal)
-                    pos = hit_pos + 1e-4 * d
+                    pos = hit_pos + normal * eps
                     throughput *= c
 
                     if ti.static(use_directional_light):
@@ -289,32 +403,39 @@ class Renderer:
                         dot = light_dir.dot(normal)
                         if dot > 0:
                             hit_light_ = 0
-                            dist, _, _, hit_light_ = self.next_hit(
-                                pos, light_dir, t)
+                            dist, _, _, hit_light_, iters = self.next_hit(
+                                pos, light_dir, t, colors)
                             if dist > DIS_LIMIT:
                                 # far enough to hit directional light
                                 contrib += throughput * \
                                     self.light_color[None] * dot
                 else:  # hit background or light voxel, terminate tracing
                     hit_background = 1
-                    break
+                    sample_complete = True
 
                 # Russian roulette
                 max_c = throughput.max()
                 if ti.random() > max_c:
                     throughput = [0, 0, 0]
-                    break
+                    sample_complete = True
                 else:
                     throughput /= max_c
-            # Tracing end
 
-            if hit_light:
-                contrib += throughput * c
-            else:
-                if depth == 1 and hit_background:
-                    # Direct hit to background
-                    contrib = self.background_color[None]
-            self.color_buffer[u, v] += contrib
+                if depth >= MAX_RAY_DEPTH:
+                    sample_complete = True
+
+                # Tracing end
+                if sample_complete:
+                    if hit_light:
+                        contrib += throughput * c
+                    else:
+                        if depth == 1 and hit_background:
+                            # Direct hit to background
+                            contrib = self.background_color[None]
+                    self.color_buffer[u, v] += contrib
+                    spp_completed += 1
+                    d, pos, t, contrib, throughput, c, depth, hit_light, hit_background = self.generate_new_sample(u, v)
+
 
     @ti.kernel
     def _render_to_image(self, samples: ti.i32):
@@ -346,9 +467,9 @@ class Renderer:
         self.current_spp = 0
         self.color_buffer.fill(0)
 
-    def accumulate(self):
-        self.render()
-        self.current_spp += 1
+    def accumulate(self, n_spp):
+        self.render(n_spp, self.voxel_color_texture)
+        self.current_spp += n_spp
 
     def fetch_image(self):
         self._render_to_image(self.current_spp)
